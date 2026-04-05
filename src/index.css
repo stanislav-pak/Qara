@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-surface: #0a0a0b;
+  --color-surface-elevated: #121214;
+  --color-border-subtle: rgb(255 255 255 / 0.08);
+  --color-accent: #e82127;
+  --color-accent-muted: #ff4d52;
+
+  --shadow-glow: 0 0 80px -20px rgb(232 33 39 / 0.25);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-[var(--color-surface)] text-zinc-100 min-h-dvh font-sans;
+    background-image:
+      radial-gradient(ellipse 120% 80% at 50% -30%, rgb(232 33 39 / 0.12), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgb(59 130 246 / 0.06), transparent);
+  }
+
+  ::selection {
+    @apply bg-red-500/30 text-white;
+  }
+}
