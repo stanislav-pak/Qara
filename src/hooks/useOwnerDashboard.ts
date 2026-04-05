@@ -20,15 +20,28 @@ export type OwnerDashboardState = {
   appointmentsToday: number
   revenueTodayKzt: number
   activeStaff: number
+  /** Записи за скользящие 7 суток (starts_at ≥ now−7d, без отменённых; без starts_at не попадают). */
+  appointmentsWeek: number
+  /** Сумма appointment_services.price по этим записям. */
+  revenueWeekKzt: number
+  /** Записи за скользящие 30 суток. */
+  appointmentsMonth: number
+  revenueMonthKzt: number
   upcoming: UpcomingAppointment[]
   loadError: boolean
 }
+
+const MS_DAY = 24 * 60 * 60 * 1000
 
 const initial: OwnerDashboardState = {
   loading: true,
   appointmentsToday: 0,
   revenueTodayKzt: 0,
   activeStaff: 0,
+  appointmentsWeek: 0,
+  revenueWeekKzt: 0,
+  appointmentsMonth: 0,
+  revenueMonthKzt: 0,
   upcoming: [],
   loadError: false,
 }
@@ -46,9 +59,11 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
     setState((s) => ({ ...s, loading: true, loadError: false }))
     const { start, end } = localDayBoundsIso()
     const nowIso = new Date().toISOString()
+    const weekAgoIso = new Date(Date.now() - 7 * MS_DAY).toISOString()
+    const monthAgoIso = new Date(Date.now() - 30 * MS_DAY).toISOString()
 
     try {
-      const [apptRes, salesRes, staffRes, upcomingRes] = await Promise.all([
+      const [apptRes, salesRes, staffRes, upcomingRes, weekApptRes, monthApptRes] = await Promise.all([
         supabase
           .from('appointments')
           .select('*', { count: 'exact', head: true })
@@ -75,9 +90,29 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .neq('status', 'cancelled')
           .order('scheduled_at', { ascending: true })
           .limit(12),
+        supabase
+          .from('appointments')
+          .select('id')
+          .eq('owner_id', userId)
+          .not('starts_at', 'is', null)
+          .gte('starts_at', weekAgoIso)
+          .neq('status', 'cancelled'),
+        supabase
+          .from('appointments')
+          .select('id')
+          .eq('owner_id', userId)
+          .not('starts_at', 'is', null)
+          .gte('starts_at', monthAgoIso)
+          .neq('status', 'cancelled'),
       ])
 
-      const anyErr = apptRes.error || salesRes.error || staffRes.error || upcomingRes.error
+      const anyErr =
+        apptRes.error ||
+        salesRes.error ||
+        staffRes.error ||
+        upcomingRes.error ||
+        weekApptRes.error ||
+        monthApptRes.error
       if (anyErr) {
         console.warn('[dashboard]', anyErr)
         setState({
@@ -85,6 +120,10 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           appointmentsToday: 0,
           revenueTodayKzt: 0,
           activeStaff: 0,
+          appointmentsWeek: 0,
+          revenueWeekKzt: 0,
+          appointmentsMonth: 0,
+          revenueMonthKzt: 0,
           upcoming: [],
           loadError: true,
         })
@@ -154,11 +193,55 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         }))
       }
 
+      const weekIds = (weekApptRes.data ?? []).map((r) => r.id)
+      const monthIds = (monthApptRes.data ?? []).map((r) => r.id)
+      const appointmentsWeek = weekIds.length
+      const appointmentsMonth = monthIds.length
+      const unionIds = [...new Set([...weekIds, ...monthIds])]
+
+      let revenueWeekKzt = 0
+      let revenueMonthKzt = 0
+      if (unionIds.length > 0) {
+        const { data: svcRows, error: svcErr } = await supabase
+          .from('appointment_services')
+          .select('appointment_id, price')
+          .in('appointment_id', unionIds)
+        if (svcErr) {
+          console.warn('[dashboard] period appointment_services', svcErr)
+          setState({
+            loading: false,
+            appointmentsToday: apptRes.count ?? 0,
+            revenueTodayKzt: revenue,
+            activeStaff: staffRes.count ?? 0,
+            appointmentsWeek,
+            revenueWeekKzt: 0,
+            appointmentsMonth,
+            revenueMonthKzt: 0,
+            upcoming,
+            loadError: true,
+          })
+          return
+        }
+        const weekSet = new Set(weekIds)
+        const monthSet = new Set(monthIds)
+        for (const row of svcRows ?? []) {
+          const aid = row.appointment_id
+          if (!aid) continue
+          const p = Number(row.price ?? 0)
+          if (weekSet.has(aid)) revenueWeekKzt += p
+          if (monthSet.has(aid)) revenueMonthKzt += p
+        }
+      }
+
       setState({
         loading: false,
         appointmentsToday: apptRes.count ?? 0,
         revenueTodayKzt: revenue,
         activeStaff: staffRes.count ?? 0,
+        appointmentsWeek,
+        revenueWeekKzt,
+        appointmentsMonth,
+        revenueMonthKzt,
         upcoming,
         loadError: false,
       })
@@ -169,6 +252,10 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         appointmentsToday: 0,
         revenueTodayKzt: 0,
         activeStaff: 0,
+        appointmentsWeek: 0,
+        revenueWeekKzt: 0,
+        appointmentsMonth: 0,
+        revenueMonthKzt: 0,
         upcoming: [],
         loadError: true,
       })

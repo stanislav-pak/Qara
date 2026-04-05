@@ -47,6 +47,10 @@ export function DashboardPage() {
     appointmentsToday,
     revenueTodayKzt,
     activeStaff,
+    appointmentsWeek,
+    revenueWeekKzt,
+    appointmentsMonth,
+    revenueMonthKzt,
     upcoming,
     loadError,
     refresh,
@@ -57,6 +61,8 @@ export function DashboardPage() {
   const dateLine = formatLocaleDateLong(today, tag)
 
   const revenueStr = formatKzt(revenueTodayKzt, tag)
+  const revenueWeekStr = formatKzt(revenueWeekKzt, tag)
+  const revenueMonthStr = formatKzt(revenueMonthKzt, tag)
 
   return (
     <div className="space-y-8">
@@ -104,6 +110,46 @@ export function DashboardPage() {
           icon={<IconUsers />}
           loading={loading}
         />
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-white">{t('dashboard.sectionWeek')}</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <MetricCard
+            label={t('dashboard.metricAppointmentsWeek')}
+            value={String(appointmentsWeek)}
+            hint={t('dashboard.hintAppointmentsWeek')}
+            icon={<IconCalendar />}
+            loading={loading}
+          />
+          <MetricCard
+            label={t('dashboard.metricRevenueWeek')}
+            value={loading ? '—' : revenueWeekStr}
+            hint={t('dashboard.hintRevenueWeek')}
+            icon={<IconCurrency />}
+            loading={loading}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-white">{t('dashboard.sectionMonth')}</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <MetricCard
+            label={t('dashboard.metricAppointmentsMonth')}
+            value={String(appointmentsMonth)}
+            hint={t('dashboard.hintAppointmentsMonth')}
+            icon={<IconCalendar />}
+            loading={loading}
+          />
+          <MetricCard
+            label={t('dashboard.metricRevenueMonth')}
+            value={loading ? '—' : revenueMonthStr}
+            hint={t('dashboard.hintRevenueMonth')}
+            icon={<IconCurrency />}
+            loading={loading}
+          />
+        </div>
       </div>
 
       <UpcomingAppointmentsList items={upcoming} loading={loading} locale={locale} t={t} />
