@@ -47,6 +47,22 @@ export function formatAppointmentSlot(iso: string, localeTag: string): { date: s
   }
 }
 
+/** KZ/RU мобильный: +7 777 123 45 67. Пустое или нестандартное — null или исходная строка без лишних пробелов. */
+export function formatKzPhoneDisplay(raw: string | null | undefined): string | null {
+  if (raw == null) return null
+  const trimmed = String(raw).trim()
+  if (!trimmed) return null
+  let d = trimmed.replace(/\D/g, '')
+  if (d.length === 0) return trimmed
+  if (d.startsWith('8') && d.length === 11) d = `7${d.slice(1)}`
+  if (d.length === 10) d = `7${d}`
+  if (d.length === 11 && d.startsWith('7')) {
+    const rest = d.slice(1)
+    return `+7 ${rest.slice(0, 3)} ${rest.slice(3, 6)} ${rest.slice(6, 8)} ${rest.slice(8, 10)}`
+  }
+  return trimmed
+}
+
 /** Дата и время для списка истории записей. */
 export function formatHistoryDateTime(iso: string, localeTag: string): string {
   return new Intl.DateTimeFormat(localeTag, {

@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useAppointmentHistory } from '@/hooks/useAppointmentHistory'
 import { useTranslation } from '@/hooks/useTranslation'
-import { formatHistoryDateTime, formatKztSpaced, localeTagFromAppLocale } from '@/lib/format'
+import {
+  formatHistoryDateTime,
+  formatKzPhoneDisplay,
+  formatKztSpaced,
+  localeTagFromAppLocale,
+} from '@/lib/format'
 import type { TranslationKey } from '@/locales/ru'
 
 function statusKey(status: string): TranslationKey {
@@ -147,16 +152,22 @@ export function HistoryPage() {
                 const when = formatHistoryDateTime(row.scheduled_at, tag)
                 const amountStr =
                   row.amount_kzt > 0 ? formatKztSpaced(row.amount_kzt, tag) : '—'
+                const phoneLine = formatKzPhoneDisplay(row.client_phone)
                 return (
                   <li key={row.id} className="px-2 py-1 sm:px-3">
                     <div className="flex flex-col gap-3 rounded-xl px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1 space-y-1">
                         <p className="text-sm font-medium tabular-nums text-white">{when}</p>
-                        <p className="text-xs text-zinc-400">
-                          <span className="text-zinc-300">{row.client_display}</span>
-                          <span className="text-zinc-600"> · </span>
-                          <span>{row.staff_name?.trim() || '—'}</span>
-                        </p>
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-zinc-400">
+                          <div className="min-w-0">
+                            <span className="text-zinc-300">{row.client_display}</span>
+                            {phoneLine ? (
+                              <p className="mt-0.5 text-zinc-500 tabular-nums">{phoneLine}</p>
+                            ) : null}
+                          </div>
+                          <span className="text-zinc-600">·</span>
+                          <span className="min-w-0">{row.staff_name?.trim() || '—'}</span>
+                        </div>
                         <p className="text-xs text-zinc-500">{row.title}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 sm:justify-end">

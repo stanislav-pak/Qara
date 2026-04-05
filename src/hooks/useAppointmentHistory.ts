@@ -13,6 +13,8 @@ export type AppointmentHistoryRow = {
   status: string
   title: string
   client_display: string
+  /** Телефон из clients.phone, только если у записи есть client_id */
+  client_phone: string | null
   staff_name: string | null
   amount_kzt: number
 }
@@ -112,8 +114,8 @@ export function useAppointmentHistory(
 
     const [clientsRes, staffRes, svcRes] = await Promise.all([
       clientIds.length
-        ? supabase.from('clients').select('id, full_name').eq('owner_id', userId).in('id', clientIds)
-        : Promise.resolve({ data: [] as { id: string; full_name: string }[], error: null }),
+        ? supabase.from('clients').select('id, full_name, phone').eq('owner_id', userId).in('id', clientIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string; phone: string }[], error: null }),
       staffIds.length
         ? supabase.from('staff_members').select('id, full_name').eq('owner_id', userId).in('id', staffIds)
         : Promise.resolve({ data: [] as { id: string; full_name: string }[], error: null }),
@@ -124,7 +126,9 @@ export function useAppointmentHistory(
     if (staffRes.error) console.warn('[history] staff_members', staffRes.error)
     if (svcRes.error) console.warn('[history] appointment_services', svcRes.error)
 
-    const clientMap = new Map((clientsRes.data ?? []).map((c) => [c.id, c.full_name]))
+    const clientMap = new Map(
+      (clientsRes.data ?? []).map((c) => [c.id, { full_name: c.full_name, phone: c.phone }]),
+    )
     const staffMap = new Map((staffRes.data ?? []).map((s) => [s.id, s.full_name]))
 
     const amountByAppt = new Map<string, number>()
@@ -135,7 +139,11 @@ export function useAppointmentHistory(
 
     const enriched: AppointmentHistoryRow[] = list.map((a) => {
       const fromClient = a.client_id ? clientMap.get(a.client_id) : undefined
-      const client_display = (fromClient?.trim() || a.client_name?.trim() || '—') as string
+      const client_display = (fromClient?.full_name?.trim() || a.client_name?.trim() || '—') as string
+      const client_phone =
+        fromClient?.phone != null && String(fromClient.phone).trim() !== ''
+          ? String(fromClient.phone).trim()
+          : null
       const staff_name = a.staff_id ? staffMap.get(a.staff_id) ?? null : null
 
       return {
@@ -144,6 +152,7 @@ export function useAppointmentHistory(
         status: a.status,
         title: a.title?.trim() || '—',
         client_display,
+        client_phone,
         staff_name,
         amount_kzt: amountByAppt.get(a.id) ?? 0,
       }
