@@ -64,6 +64,7 @@ export interface Database {
           full_name: string
           specialty: string
           is_active: boolean
+          avatar_url: string | null
           created_at: string
         }
         Insert: {
@@ -72,6 +73,7 @@ export interface Database {
           full_name: string
           specialty?: string
           is_active?: boolean
+          avatar_url?: string | null
           created_at?: string
         }
         Update: {
@@ -80,6 +82,7 @@ export interface Database {
           full_name?: string
           specialty?: string
           is_active?: boolean
+          avatar_url?: string | null
           created_at?: string
         }
         Relationships: []

@@ -68,7 +68,12 @@ export function useStaffMembers() {
   const updateMember = useCallback(
     async (
       id: string,
-      patch: Partial<{ full_name: string; specialty: string; is_active: boolean }>,
+      patch: Partial<{
+        full_name: string
+        specialty: string
+        is_active: boolean
+        avatar_url: string | null
+      }>,
     ): Promise<{ error: Error | null }> => {
       if (!userId) return { error: new Error('no user') }
       const { error } = await supabase.from('staff_members').update(patch).eq('id', id).eq('owner_id', userId)
@@ -79,6 +84,30 @@ export function useStaffMembers() {
     [userId, load],
   )
 
+  const uploadStaffAvatar = useCallback(
+    async (staffId: string, file: File): Promise<{ error: Error | null }> => {
+      if (!userId) return { error: new Error('no user') }
+      const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+      if (!allowed.includes(file.type)) {
+        return { error: new Error('unsupported image type') }
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        return { error: new Error('file too large') }
+      }
+      const path = `${userId}/${staffId}`
+      const { error: upErr } = await supabase.storage
+        .from('staff-avatars')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) return { error: new Error(upErr.message) }
+      const { data: pub } = supabase.storage.from('staff-avatars').getPublicUrl(path)
+      const base = pub.publicUrl
+      const bust = base.includes('?') ? '&' : '?'
+      const publicUrl = `${base}${bust}v=${Date.now()}`
+      return updateMember(staffId, { avatar_url: publicUrl })
+    },
+    [userId, updateMember],
+  )
+
   return {
     staff,
     loading,
@@ -86,5 +115,6 @@ export function useStaffMembers() {
     refresh: load,
     createMember,
     updateMember,
+    uploadStaffAvatar,
   }
 }

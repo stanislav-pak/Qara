@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { StaffMemberAvatar } from '@/components/staff/StaffMemberAvatar'
 import type { StaffMemberRow } from '@/hooks/useStaffMembers'
 import { useStaffMembers } from '@/hooks/useStaffMembers'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -105,12 +106,14 @@ function StaffEditModal({ row, t, working, onClose, onSave }: EditModalProps) {
 
 export function StaffPage() {
   const { t } = useTranslation()
-  const { staff, loading, loadError, refresh, createMember, updateMember } = useStaffMembers()
+  const { staff, loading, loadError, refresh, createMember, updateMember, uploadStaffAvatar } =
+    useStaffMembers()
 
   const [newName, setNewName] = useState('')
   const [newSpecialty, setNewSpecialty] = useState('')
   const [formError, setFormError] = useState(false)
   const [working, setWorking] = useState(false)
+  const [uploadingStaffId, setUploadingStaffId] = useState<string | null>(null)
   const [editing, setEditing] = useState<StaffMemberRow | null>(null)
 
   const onCreate = async (e: React.FormEvent) => {
@@ -152,6 +155,17 @@ export function StaffPage() {
       if (error) setFormError(true)
     },
     [updateMember],
+  )
+
+  const onAvatarFile = useCallback(
+    async (staffId: string, file: File) => {
+      setFormError(false)
+      setUploadingStaffId(staffId)
+      const { error } = await uploadStaffAvatar(staffId, file)
+      setUploadingStaffId(null)
+      if (error) setFormError(true)
+    },
+    [uploadStaffAvatar],
   )
 
   return (
@@ -233,6 +247,7 @@ export function StaffPage() {
                   key={i}
                   className="flex animate-pulse items-center gap-4 rounded-xl px-3 py-4"
                 >
+                  <div className="h-12 w-12 shrink-0 rounded-full bg-white/[0.06]" />
                   <div className="h-4 flex-1 rounded bg-white/[0.06]" />
                   <div className="h-6 w-20 rounded-lg bg-white/[0.06]" />
                 </li>
@@ -245,16 +260,27 @@ export function StaffPage() {
               {staff.map((row) => (
                 <li key={row.id} className="px-2 py-1 sm:px-3">
                   <div className="flex flex-col gap-3 rounded-xl px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-zinc-100">
-                        {row.full_name}
-                        {(row.specialty ?? '').trim() ? (
-                          <span className="font-normal text-zinc-500">
-                            {' · '}
-                            {(row.specialty ?? '').trim()}
-                          </span>
-                        ) : null}
-                      </p>
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <StaffMemberAvatar
+                        staffId={row.id}
+                        fullName={row.full_name}
+                        avatarUrl={row.avatar_url}
+                        disabled={working || Boolean(uploadingStaffId)}
+                        uploading={uploadingStaffId === row.id}
+                        uploadLabel={t('staff.uploadPhoto')}
+                        onFileSelected={(file) => void onAvatarFile(row.id, file)}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-zinc-100">
+                          {row.full_name}
+                          {(row.specialty ?? '').trim() ? (
+                            <span className="font-normal text-zinc-500">
+                              {' · '}
+                              {(row.specialty ?? '').trim()}
+                            </span>
+                          ) : null}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       <span

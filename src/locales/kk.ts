@@ -171,6 +171,7 @@ export const kk: Record<TranslationKey, string> = {
   'staff.editHeading': 'Қызметкерді өңдеу',
   'staff.save': 'Сақтау',
   'staff.cancel': 'Болдырмау',
+  'staff.uploadPhoto': 'Фото',
   'shell.signOut': 'Шығу',
 
   'language.ru': 'RU',
