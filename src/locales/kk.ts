@@ -110,6 +110,15 @@ export const kk: Record<TranslationKey, string> = {
   'history.loadError':
     'Тарих жүктелмеді. appointments, clients, staff_members, appointment_services кестелері мен RLS тексеріңіз.',
   'history.refresh': 'Жаңарту',
+  'history.exportExcel': 'Excel-ға экспорт',
+  'history.exportSheetName': 'Тарих',
+  'history.exportColDateTime': 'Күні мен уақыты',
+  'history.exportColClient': 'Клиент',
+  'history.exportColPhone': 'Телефон',
+  'history.exportColStaff': 'Шебер',
+  'history.exportColService': 'Қызмет',
+  'history.exportColAmount': 'Сома (₸)',
+  'history.exportColStatus': 'Күйі',
   'history.statusPending': 'Күтуде',
 
   'services.title': 'Қызметтер',

@@ -106,6 +106,15 @@ export const ru = {
   'history.loadError':
     'Не удалось загрузить историю. Проверьте таблицы appointments, clients, staff_members, appointment_services и RLS.',
   'history.refresh': 'Обновить',
+  'history.exportExcel': 'Экспорт в Excel',
+  'history.exportSheetName': 'История',
+  'history.exportColDateTime': 'Дата и время',
+  'history.exportColClient': 'Клиент',
+  'history.exportColPhone': 'Телефон',
+  'history.exportColStaff': 'Мастер',
+  'history.exportColService': 'Услуга',
+  'history.exportColAmount': 'Сумма (₸)',
+  'history.exportColStatus': 'Статус',
   'history.statusPending': 'Ожидает',
 
   'services.title': 'Услуги',

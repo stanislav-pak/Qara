@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { useAppointmentHistory } from '@/hooks/useAppointmentHistory'
 import { useTranslation } from '@/hooks/useTranslation'
 import {
+  formatDateInputLocal,
   formatHistoryDateTime,
   formatKzPhoneDisplay,
   formatKztSpaced,
@@ -45,6 +47,32 @@ export function HistoryPage() {
     void refreshStaff()
   }, [refresh, refreshStaff])
 
+  const exportToExcel = useCallback(() => {
+    const headers = [
+      t('history.exportColDateTime'),
+      t('history.exportColClient'),
+      t('history.exportColPhone'),
+      t('history.exportColStaff'),
+      t('history.exportColService'),
+      t('history.exportColAmount'),
+      t('history.exportColStatus'),
+    ]
+    const body = rows.map((row) => [
+      formatHistoryDateTime(row.scheduled_at, tag),
+      row.client_display,
+      formatKzPhoneDisplay(row.client_phone) ?? '',
+      row.staff_name?.trim() || '—',
+      row.title,
+      row.amount_kzt > 0 ? formatKztSpaced(row.amount_kzt, tag) : '—',
+      t(statusKey(row.status)),
+    ])
+    const sheet = XLSX.utils.aoa_to_sheet([headers, ...body])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, sheet, t('history.exportSheetName').slice(0, 31))
+    const day = formatDateInputLocal(new Date())
+    XLSX.writeFile(wb, `qara-history-${day}.xlsx`)
+  }, [rows, t, tag])
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -52,14 +80,24 @@ export function HistoryPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-white">{t('history.title')}</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-500">{t('history.subtitle')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void onRefresh()}
-          disabled={loading}
-          className="self-start rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
-        >
-          {t('history.refresh')}
-        </button>
+        <div className="flex flex-wrap gap-2 self-start">
+          <button
+            type="button"
+            onClick={() => void onRefresh()}
+            disabled={loading}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+          >
+            {t('history.refresh')}
+          </button>
+          <button
+            type="button"
+            onClick={exportToExcel}
+            disabled={loading || rows.length === 0}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+          >
+            {t('history.exportExcel')}
+          </button>
+        </div>
       </div>
 
       {loadError && (
