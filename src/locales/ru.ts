@@ -164,7 +164,7 @@ export const ru = {
   'staff.editHeading': 'Редактирование сотрудника',
   'staff.save': 'Сохранить',
   'staff.cancel': 'Отмена',
-  'staff.uploadPhoto': 'Фото',
+  'staff.uploadPhoto': 'Загрузить фото',
   'shell.signOut': 'Выйти',
 
   'language.ru': 'RU',
