@@ -113,10 +113,26 @@ export function useAppointments() {
         status: 'scheduled',
       })
       if (error) return { error: new Error(error.message) }
+      const staffName = activeStaff.find((s) => s.id === input.staff_id.trim())?.full_name ?? null
+      const d = new Date(input.scheduled_at)
+      const date = Number.isNaN(d.getTime()) ? input.scheduled_at : d.toISOString().slice(0, 10)
+      const time = Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(11, 16)
+      await fetch('https://n8n35164.hostkey.in/webhook/appointment-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_name: input.client_name?.trim() || '',
+          phone: null,
+          service: input.title.trim() || 'Приём',
+          staff: staffName,
+          date,
+          time,
+        }),
+      })
       await load()
       return { error: null }
     },
-    [userId, load],
+    [userId, load, activeStaff],
   )
 
   const updateAppointment = useCallback(
