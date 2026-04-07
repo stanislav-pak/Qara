@@ -219,6 +219,19 @@ export function BookingPage() {
       if (apptError) throw apptError
       if (!appointment?.id) throw new Error('appointment id missing')
 
+      await fetch('https://n8n35164.hostkey.in/webhook/appointment-confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_name: clientName,
+          phone: phoneE164,
+          service: selectedService?.name,
+          staff: selectedStaff?.full_name,
+          date: selectedDate,
+          time: selectedTime,
+        }),
+      })
+
       const { error: lineErr } = await supabase.from('appointment_services').insert({
         appointment_id: appointment.id,
         service_id: selectedService.id,
