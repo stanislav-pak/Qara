@@ -34,6 +34,9 @@ export function AppShell() {
             <NavLink to="/history" className={navClass}>
               {t('shell.navHistory')}
             </NavLink>
+            <NavLink to="/finance" className={navClass}>
+              {t('shell.navFinance')}
+            </NavLink>
             <NavLink to="/staff" className={navClass}>
               {t('shell.navStaff')}
             </NavLink>

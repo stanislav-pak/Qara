@@ -7,6 +7,7 @@ import { AppointmentsPage } from '@/pages/AppointmentsPage'
 import { AuthPage } from '@/pages/AuthPage'
 import { BookingPage } from '@/pages/BookingPage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { FinancePage } from '@/pages/FinancePage'
 import { HistoryPage } from '@/pages/HistoryPage'
 import { ServicesPage } from '@/pages/ServicesPage'
 import { StaffPage } from '@/pages/StaffPage'
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="appointments" element={<AppointmentsPage />} />
             <Route path="history" element={<HistoryPage />} />
+            <Route path="finance" element={<FinancePage />} />
             <Route path="staff" element={<StaffPage />} />
             <Route path="services" element={<ServicesPage />} />
           </Route>

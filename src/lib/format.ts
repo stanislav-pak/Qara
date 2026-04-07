@@ -3,6 +3,27 @@ export function localDayBoundsIso(): { start: string; end: string } {
   return localDayBoundsFor(new Date())
 }
 
+/** Ағымдағы ай (немесе reference) — [00:00 1-ші күн .. 23:59:59.999 соңғы күн] жергілікті уақыт. */
+export function localMonthBoundsIso(reference: Date = new Date()): { start: string; end: string } {
+  const y = reference.getFullYear()
+  const m = reference.getMonth()
+  const start = new Date(y, m, 1, 0, 0, 0, 0)
+  const end = new Date(y, m + 1, 0, 23, 59, 59, 999)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+/** `<input type="date" />` мәнінен occurred_at үшін ISO (тұрақты уақыт — түс локалды). */
+export function dateInputLocalToIsoMidday(value: string): string {
+  const [ys, ms, ds] = value.split('-')
+  const y = Number(ys)
+  const mo = Number(ms)
+  const d = Number(ds)
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) {
+    return new Date().toISOString()
+  }
+  return new Date(y, mo - 1, d, 12, 0, 0, 0).toISOString()
+}
+
 /** Белгілі бір күн үшін [00:00 .. 23:59:59.999] жергілікті уақыт. */
 export function localDayBoundsFor(day: Date): { start: string; end: string } {
   const start = new Date(day)

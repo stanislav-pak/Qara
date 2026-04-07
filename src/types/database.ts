@@ -249,10 +249,52 @@ export interface Database {
         }
         Relationships: []
       }
+      expenses: {
+        Row: {
+          id: string
+          owner_id: string
+          amount_kzt: number
+          category: string
+          note: string | null
+          occurred_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          owner_id: string
+          amount_kzt: number
+          category: string
+          note?: string | null
+          occurred_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          owner_id?: string
+          amount_kzt?: number
+          category?: string
+          note?: string | null
+          occurred_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
   }
+}
+
+export type ExpenseCategory = 'salary' | 'rent' | 'supplies' | 'other'
+
+export type ExpenseRow = {
+  id: string
+  owner_id: string
+  amount_kzt: number
+  category: ExpenseCategory
+  note: string | null
+  occurred_at: string
+  created_at: string
 }
