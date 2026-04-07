@@ -60,6 +60,10 @@ export const kk: Record<TranslationKey, string> = {
   'appointments.save': 'Сақтау',
   'appointments.cancel': 'Болдырмау',
   'appointments.formError': 'Сақталмады. Қайта көріңіз.',
+  'appointments.optionStatusScheduled': 'Жоспарланған',
+  'appointments.optionStatusCompleted': 'Келді',
+  'appointments.optionStatusNoShow': 'Келмеді',
+  'appointments.optionStatusCancelled': 'Бас тартылды',
 
   'dashboard.title': 'Бақылау тақтасы',
   'dashboard.subtitle': 'Бүгінгі жазбалар, кіріс және команда',

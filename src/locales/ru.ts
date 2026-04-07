@@ -56,6 +56,10 @@ export const ru = {
   'appointments.save': 'Сохранить',
   'appointments.cancel': 'Отмена',
   'appointments.formError': 'Не удалось сохранить. Попробуйте ещё раз.',
+  'appointments.optionStatusScheduled': 'Запланировано',
+  'appointments.optionStatusCompleted': 'Пришёл',
+  'appointments.optionStatusNoShow': 'Не пришёл',
+  'appointments.optionStatusCancelled': 'Отменено',
 
   'dashboard.title': 'Панель управления',
   'dashboard.subtitle': 'Записи, выручка и команда за сегодня',

@@ -15,16 +15,36 @@ import {
   localeTagFromAppLocale,
 } from '@/lib/format'
 import type { TranslationKey } from '@/locales/ru'
-function statusKey(status: string): TranslationKey {
-  switch (status) {
+
+const STATUS_VALUES: AppointmentStatus[] = ['scheduled', 'completed', 'no_show', 'cancelled']
+
+function normalizeAppointmentStatus(s: string): AppointmentStatus {
+  return STATUS_VALUES.includes(s as AppointmentStatus) ? (s as AppointmentStatus) : 'scheduled'
+}
+
+function statusLabelKey(status: string): TranslationKey {
+  switch (normalizeAppointmentStatus(status)) {
     case 'completed':
-      return 'dashboard.statusCompleted'
+      return 'appointments.optionStatusCompleted'
     case 'cancelled':
-      return 'dashboard.statusCancelled'
+      return 'appointments.optionStatusCancelled'
     case 'no_show':
-      return 'dashboard.statusNoShow'
+      return 'appointments.optionStatusNoShow'
     default:
-      return 'dashboard.statusScheduled'
+      return 'appointments.optionStatusScheduled'
+  }
+}
+
+function statusBadgeClass(st: AppointmentStatus): string {
+  switch (st) {
+    case 'scheduled':
+      return 'border-sky-500/35 bg-sky-500/[0.12] text-sky-200/95'
+    case 'completed':
+      return 'border-emerald-500/35 bg-emerald-500/[0.12] text-emerald-200/95'
+    case 'no_show':
+      return 'border-amber-500/35 bg-amber-500/[0.12] text-amber-200/95'
+    case 'cancelled':
+      return 'border-rose-500/35 bg-rose-500/[0.12] text-rose-200/95'
   }
 }
 
@@ -57,7 +77,9 @@ function AppointmentEditModal({ row, staffOptions, t, working, onClose, onSave }
   const [title, setTitle] = useState(row.title)
   const [client, setClient] = useState(row.client_name ?? '')
   const [when, setWhen] = useState(() => isoToDatetimeLocalValue(row.scheduled_at))
-  const [status, setStatus] = useState<AppointmentStatus>(row.status as AppointmentStatus)
+  const [status, setStatus] = useState<AppointmentStatus>(() =>
+    normalizeAppointmentStatus(row.status),
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -148,10 +170,10 @@ function AppointmentEditModal({ row, staffOptions, t, working, onClose, onSave }
               onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
             >
-              <option value="scheduled">{t('dashboard.statusScheduled')}</option>
-              <option value="completed">{t('dashboard.statusCompleted')}</option>
-              <option value="cancelled">{t('dashboard.statusCancelled')}</option>
-              <option value="no_show">{t('dashboard.statusNoShow')}</option>
+              <option value="scheduled">{t('appointments.optionStatusScheduled')}</option>
+              <option value="completed">{t('appointments.optionStatusCompleted')}</option>
+              <option value="no_show">{t('appointments.optionStatusNoShow')}</option>
+              <option value="cancelled">{t('appointments.optionStatusCancelled')}</option>
             </select>
           </label>
         </div>
@@ -204,6 +226,7 @@ export function AppointmentsPage() {
   const [formError, setFormError] = useState(false)
   const [working, setWorking] = useState(false)
   const [editing, setEditing] = useState<AppointmentDayRow | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     setNewWhen(defaultDatetimeLocalForSelectedDay(selectedDate))
@@ -446,10 +469,22 @@ export function AppointmentsPage() {
             <ul className="divide-y divide-white/[0.05]">
               {appointments.map((row) => {
                 const { date, time } = formatAppointmentSlot(row.scheduled_at, tag)
-                const st = row.status as AppointmentStatus
+                const st = normalizeAppointmentStatus(row.status)
+                const open = expandedId === row.id
                 return (
-                  <li key={row.id} className="px-2 py-2 sm:px-3">
-                    <div className="flex flex-col gap-3 rounded-xl px-2 py-3 sm:flex-row sm:items-start sm:gap-4">
+                  <li
+                    key={row.id}
+                    className={`px-2 py-2 sm:px-3 ${open ? 'bg-white/[0.02]' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      disabled={working}
+                      aria-expanded={open}
+                      onClick={() =>
+                        setExpandedId((id) => (id === row.id ? null : row.id))
+                      }
+                      className="flex w-full flex-col gap-3 rounded-xl px-2 py-3 text-left transition hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:opacity-40 sm:flex-row sm:items-start sm:gap-4"
+                    >
                       <div className="flex shrink-0 items-baseline gap-2 tabular-nums sm:w-[108px] sm:flex-col sm:gap-0">
                         <span className="text-xs font-medium text-zinc-500">{date}</span>
                         <span className="text-base font-semibold text-white">{time}</span>
@@ -464,66 +499,62 @@ export function AppointmentsPage() {
                           </span>
                         </p>
                       </div>
-                      <span className="shrink-0 self-start rounded-md border border-white/[0.08] bg-black/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-                        {t(statusKey(st))}
+                      <span
+                        className={`shrink-0 self-start rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(st)}`}
+                      >
+                        {t(statusLabelKey(st))}
                       </span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2 px-2 pb-1">
-                      {st === 'scheduled' && (
-                        <>
-                          <button
-                            type="button"
+                    </button>
+                    {open && (
+                      <div className="space-y-3 border-t border-white/[0.06] px-2 pb-3 pt-3 sm:px-3">
+                        <label className="block">
+                          <span className="text-xs font-medium text-zinc-500">
+                            {t('appointments.fieldStatus')}
+                          </span>
+                          <select
+                            value={st}
                             disabled={working}
-                            onClick={() => void runStatus(row.id, 'completed')}
-                            className="rounded-lg border border-emerald-500/30 px-2.5 py-1 text-xs font-medium text-emerald-200/90 transition hover:bg-emerald-500/10 disabled:opacity-40"
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              const v = e.target.value as AppointmentStatus
+                              if (v !== st) void runStatus(row.id, v)
+                            }}
+                            className="mt-1 w-full max-w-xs rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
                           >
-                            {t('appointments.actionComplete')}
-                          </button>
+                            <option value="scheduled">
+                              {t('appointments.optionStatusScheduled')}
+                            </option>
+                            <option value="completed">
+                              {t('appointments.optionStatusCompleted')}
+                            </option>
+                            <option value="no_show">
+                              {t('appointments.optionStatusNoShow')}
+                            </option>
+                            <option value="cancelled">
+                              {t('appointments.optionStatusCancelled')}
+                            </option>
+                          </select>
+                        </label>
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             disabled={working}
-                            onClick={() => void runStatus(row.id, 'no_show')}
+                            onClick={() => setEditing(row)}
                             className="rounded-lg border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-40"
                           >
-                            {t('appointments.actionNoShow')}
+                            {t('appointments.actionEdit')}
                           </button>
                           <button
                             type="button"
                             disabled={working}
-                            onClick={() => void runStatus(row.id, 'cancelled')}
-                            className="rounded-lg border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-400 transition hover:border-rose-500/30 hover:text-rose-200/90 disabled:opacity-40"
+                            onClick={() => void onDelete(row.id)}
+                            className="rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium text-rose-300/80 transition hover:bg-rose-500/10 disabled:opacity-40"
                           >
-                            {t('appointments.actionCancel')}
+                            {t('appointments.actionDelete')}
                           </button>
-                        </>
-                      )}
-                      {st !== 'scheduled' && (
-                        <button
-                          type="button"
-                          disabled={working}
-                          onClick={() => void runStatus(row.id, 'scheduled')}
-                          className="rounded-lg border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-40"
-                        >
-                          {t('appointments.actionRestore')}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        disabled={working}
-                        onClick={() => setEditing(row)}
-                        className="rounded-lg border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-40"
-                      >
-                        {t('appointments.actionEdit')}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={working}
-                        onClick={() => void onDelete(row.id)}
-                        className="rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium text-rose-300/80 transition hover:bg-rose-500/10 disabled:opacity-40"
-                      >
-                        {t('appointments.actionDelete')}
-                      </button>
-                    </div>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 )
               })}
