@@ -83,6 +83,10 @@ export const kk: Record<TranslationKey, string> = {
   'dashboard.metricRevenueMonth': 'Кіріс',
   'dashboard.hintAppointmentsMonth': 'Соңғы 30 күн, starts_at бойынша, бас тартылғандарсыз',
   'dashboard.hintRevenueMonth': 'Осы кезеңдегі қызметтер сомасы (appointment_services)',
+  'dashboard.revenueChartTitle': 'Күнделікті кіріс',
+  'dashboard.revenueChartHint':
+    'Соңғы 30 күн: қызметтер сомасы (жазбаның starts_at күні) және sales_transactions сатулары (occurred_at).',
+  'dashboard.revenueChartYAxis': '₸',
   'dashboard.upcomingTitle': 'Алдағы жазбалар',
   'dashboard.upcomingEmpty': 'Жоспарланған жазба жоқ',
   'dashboard.schemaBanner':

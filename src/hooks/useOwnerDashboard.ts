@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { localDayBoundsIso } from '@/lib/format'
+import { formatDateInputLocal, localDayBoundsIso } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
+
+export type RevenueChartDay = {
+  /** Локальная дата YYYY-MM-DD. */
+  dateKey: string
+  totalKzt: number
+}
 
 export type UpcomingAppointment = {
   id: string
@@ -27,11 +33,48 @@ export type OwnerDashboardState = {
   /** Записи за скользящие 30 суток. */
   appointmentsMonth: number
   revenueMonthKzt: number
+  /** Выручка по календарным дням: услуги (starts_at) + sales_transactions (occurred_at). */
+  revenueChart30d: RevenueChartDay[]
   upcoming: UpcomingAppointment[]
   loadError: boolean
 }
 
 const MS_DAY = 24 * 60 * 60 * 1000
+
+function buildRevenueChart30d(
+  chartAppts: { id: string; starts_at: string }[],
+  svcRows: { appointment_id: string; price: number | null }[] | null | undefined,
+  salesRows: { occurred_at: string; amount_kzt: number | null }[] | null | undefined,
+  chartStart: Date,
+): RevenueChartDay[] {
+  const byDay = new Map<string, number>()
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(chartStart)
+    d.setDate(chartStart.getDate() + i)
+    byDay.set(formatDateInputLocal(d), 0)
+  }
+  const startsById = new Map(chartAppts.map((a) => [a.id, a.starts_at]))
+  for (const row of svcRows ?? []) {
+    const iso = startsById.get(row.appointment_id)
+    if (!iso) continue
+    const day = formatDateInputLocal(new Date(iso))
+    if (!byDay.has(day)) continue
+    byDay.set(day, (byDay.get(day) ?? 0) + Number(row.price ?? 0))
+  }
+  for (const row of salesRows ?? []) {
+    const day = formatDateInputLocal(new Date(row.occurred_at))
+    if (!byDay.has(day)) continue
+    byDay.set(day, (byDay.get(day) ?? 0) + Number(row.amount_kzt ?? 0))
+  }
+  const out: RevenueChartDay[] = []
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(chartStart)
+    d.setDate(chartStart.getDate() + i)
+    const key = formatDateInputLocal(d)
+    out.push({ dateKey: key, totalKzt: byDay.get(key) ?? 0 })
+  }
+  return out
+}
 
 const initial: OwnerDashboardState = {
   loading: true,
@@ -42,6 +85,7 @@ const initial: OwnerDashboardState = {
   revenueWeekKzt: 0,
   appointmentsMonth: 0,
   revenueMonthKzt: 0,
+  revenueChart30d: [],
   upcoming: [],
   loadError: false,
 }
@@ -62,8 +106,31 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
     const weekAgoIso = new Date(Date.now() - 7 * MS_DAY).toISOString()
     const monthAgoIso = new Date(Date.now() - 30 * MS_DAY).toISOString()
 
+    const chartAnchor = new Date()
+    const chartStart = new Date(
+      chartAnchor.getFullYear(),
+      chartAnchor.getMonth(),
+      chartAnchor.getDate() - 29,
+      0,
+      0,
+      0,
+      0,
+    )
+    const chartEnd = new Date(
+      chartAnchor.getFullYear(),
+      chartAnchor.getMonth(),
+      chartAnchor.getDate(),
+      23,
+      59,
+      59,
+      999,
+    )
+    const chartStartIso = chartStart.toISOString()
+    const chartEndIso = chartEnd.toISOString()
+
     try {
-      const [apptRes, salesRes, staffRes, upcomingRes, weekApptRes, monthApptRes] = await Promise.all([
+      const [apptRes, salesRes, staffRes, upcomingRes, weekApptRes, monthApptRes, chartApptRes, chartSalesRes] =
+        await Promise.all([
         supabase
           .from('appointments')
           .select('*', { count: 'exact', head: true })
@@ -104,6 +171,20 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .not('starts_at', 'is', null)
           .gte('starts_at', monthAgoIso)
           .neq('status', 'cancelled'),
+        supabase
+          .from('appointments')
+          .select('id, starts_at')
+          .eq('owner_id', userId)
+          .gte('starts_at', chartStartIso)
+          .lte('starts_at', chartEndIso)
+          .neq('status', 'cancelled')
+          .not('starts_at', 'is', null),
+        supabase
+          .from('sales_transactions')
+          .select('occurred_at, amount_kzt')
+          .eq('owner_id', userId)
+          .gte('occurred_at', chartStartIso)
+          .lte('occurred_at', chartEndIso),
       ])
 
       const anyErr =
@@ -112,7 +193,9 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         staffRes.error ||
         upcomingRes.error ||
         weekApptRes.error ||
-        monthApptRes.error
+        monthApptRes.error ||
+        chartApptRes.error ||
+        chartSalesRes.error
       if (anyErr) {
         console.warn('[dashboard]', anyErr)
         setState({
@@ -124,6 +207,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           revenueWeekKzt: 0,
           appointmentsMonth: 0,
           revenueMonthKzt: 0,
+          revenueChart30d: [],
           upcoming: [],
           loadError: true,
         })
@@ -217,6 +301,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
             revenueWeekKzt: 0,
             appointmentsMonth,
             revenueMonthKzt: 0,
+            revenueChart30d: [],
             upcoming,
             loadError: true,
           })
@@ -233,6 +318,39 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         }
       }
 
+      const chartAppts = (chartApptRes.data ?? []) as { id: string; starts_at: string }[]
+      const chartIds = chartAppts.map((a) => a.id)
+      let revenueChart30d: RevenueChartDay[] = []
+      if (chartIds.length > 0) {
+        const { data: chartSvcRows, error: chartSvcErr } = await supabase
+          .from('appointment_services')
+          .select('appointment_id, price')
+          .in('appointment_id', chartIds)
+        if (chartSvcErr) {
+          console.warn('[dashboard] chart appointment_services', chartSvcErr)
+          revenueChart30d = buildRevenueChart30d(
+            chartAppts,
+            [],
+            chartSalesRes.data ?? [],
+            chartStart,
+          )
+        } else {
+          revenueChart30d = buildRevenueChart30d(
+            chartAppts,
+            chartSvcRows,
+            chartSalesRes.data ?? [],
+            chartStart,
+          )
+        }
+      } else {
+        revenueChart30d = buildRevenueChart30d(
+          [],
+          [],
+          chartSalesRes.data ?? [],
+          chartStart,
+        )
+      }
+
       setState({
         loading: false,
         appointmentsToday: apptRes.count ?? 0,
@@ -242,6 +360,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         revenueWeekKzt,
         appointmentsMonth,
         revenueMonthKzt,
+        revenueChart30d,
         upcoming,
         loadError: false,
       })
@@ -256,6 +375,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         revenueWeekKzt: 0,
         appointmentsMonth: 0,
         revenueMonthKzt: 0,
+        revenueChart30d: [],
         upcoming: [],
         loadError: true,
       })

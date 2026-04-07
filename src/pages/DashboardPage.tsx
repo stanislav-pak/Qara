@@ -1,6 +1,7 @@
 import { useTranslation } from '@/hooks/useTranslation'
 import { useOwnerDashboard } from '@/hooks/useOwnerDashboard'
 import { MetricCard } from '@/components/dashboard/MetricCard'
+import { RevenueChart30d } from '@/components/dashboard/RevenueChart30d'
 import { UpcomingAppointmentsList } from '@/components/dashboard/UpcomingAppointmentsList'
 import { formatKzt, formatLocaleDateLong, localeTagFromAppLocale } from '@/lib/format'
 
@@ -51,6 +52,7 @@ export function DashboardPage() {
     revenueWeekKzt,
     appointmentsMonth,
     revenueMonthKzt,
+    revenueChart30d,
     upcoming,
     loadError,
     refresh,
@@ -151,6 +153,8 @@ export function DashboardPage() {
           />
         </div>
       </div>
+
+      <RevenueChart30d data={revenueChart30d} loading={loading} localeTag={tag} t={t} />
 
       <UpcomingAppointmentsList items={upcoming} loading={loading} locale={locale} t={t} />
     </div>

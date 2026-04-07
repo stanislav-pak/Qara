@@ -79,6 +79,10 @@ export const ru = {
   'dashboard.metricRevenueMonth': 'Выручка',
   'dashboard.hintAppointmentsMonth': 'Последние 30 дней по starts_at, без отменённых',
   'dashboard.hintRevenueMonth': 'Сумма услуг (appointment_services) за этот период',
+  'dashboard.revenueChartTitle': 'Выручка по дням',
+  'dashboard.revenueChartHint':
+    'Последние 30 дней: сумма услуг (по дате starts_at записи) и продажи из sales_transactions (по occurred_at).',
+  'dashboard.revenueChartYAxis': '₸',
   'dashboard.upcomingTitle': 'Предстоящие записи',
   'dashboard.upcomingEmpty': 'Нет запланированных записей',
   'dashboard.schemaBanner':
