@@ -18,8 +18,6 @@ export const kk: Record<TranslationKey, string> = {
   'auth.wait': 'Күту…',
   'auth.submitLogin': 'Кіру',
   'auth.submitRegister': 'Аккаунт құру',
-  'auth.footerModules':
-    'Келешек модульдер: инвентарь 2.0, CRM, қаржы (₸), AI инсайттар.',
 
   'booking.title': 'Онлайн бронь',
   'booking.description':
@@ -216,6 +214,8 @@ export const kk: Record<TranslationKey, string> = {
   'staff.cancel': 'Болдырмау',
   'staff.uploadPhoto': 'Фото жүктеу',
   'shell.signOut': 'Шығу',
+  'shell.ariaOpenMenu': 'Навигация мәзін ашу',
+  'shell.ariaCloseMenu': 'Мәзді жабу',
 
   'language.ru': 'RU',
   'language.kk': 'ҚАЗ',

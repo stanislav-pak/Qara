@@ -16,8 +16,6 @@ export const ru = {
   'auth.wait': 'Подождите…',
   'auth.submitLogin': 'Войти',
   'auth.submitRegister': 'Создать аккаунт',
-  'auth.footerModules':
-    'Скоро: инвентарь 2.0, CRM, финансы (₸), AI-аналитика.',
 
   'booking.title': 'Онлайн-бронирование',
   'booking.description':
@@ -209,6 +207,8 @@ export const ru = {
   'staff.cancel': 'Отмена',
   'staff.uploadPhoto': 'Загрузить фото',
   'shell.signOut': 'Выйти',
+  'shell.ariaOpenMenu': 'Открыть меню навигации',
+  'shell.ariaCloseMenu': 'Закрыть меню навигации',
 
   'language.ru': 'RU',
   'language.kk': 'ҚАЗ',

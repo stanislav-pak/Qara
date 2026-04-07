@@ -217,8 +217,6 @@ export function AuthPage() {
             </button>
           </form>
         </div>
-
-        <p className="mt-6 text-center text-xs text-zinc-600">{t('auth.footerModules')}</p>
       </div>
     </div>
   )
