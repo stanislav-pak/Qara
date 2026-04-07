@@ -38,6 +38,16 @@ export function useFinance(): FinanceState & {
     occurredDate: string
     note: string | null
   }) => Promise<{ error: Error | null }>
+  updateExpense: (
+    id: string,
+    input: {
+      amount_kzt: number
+      category: ExpenseCategory
+      occurredDate: string
+      note: string | null
+    },
+  ) => Promise<{ error: Error | null }>
+  deleteExpense: (id: string) => Promise<{ error: Error | null }>
 } {
   const userId = useAuthStore((s) => s.user?.id)
   const [state, setState] = useState<FinanceState>(initial)
@@ -152,5 +162,48 @@ export function useFinance(): FinanceState & {
     [userId, load],
   )
 
-  return { ...state, refresh: load, createExpense }
+  const updateExpense = useCallback(
+    async (
+      id: string,
+      input: {
+        amount_kzt: number
+        category: ExpenseCategory
+        occurredDate: string
+        note: string | null
+      },
+    ): Promise<{ error: Error | null }> => {
+      if (!userId) return { error: new Error('no user') }
+      if (!Number.isFinite(input.amount_kzt) || input.amount_kzt <= 0) {
+        return { error: new Error('invalid amount') }
+      }
+      const occurred_at = dateInputLocalToIsoMidday(input.occurredDate)
+      const { error } = await supabase
+        .from('expenses')
+        .update({
+          amount_kzt: input.amount_kzt,
+          category: input.category,
+          note: input.note?.trim() ? input.note.trim() : null,
+          occurred_at,
+        })
+        .eq('id', id)
+        .eq('owner_id', userId)
+      if (error) return { error: new Error(error.message) }
+      await load()
+      return { error: null }
+    },
+    [userId, load],
+  )
+
+  const deleteExpense = useCallback(
+    async (id: string): Promise<{ error: Error | null }> => {
+      if (!userId) return { error: new Error('no user') }
+      const { error } = await supabase.from('expenses').delete().eq('id', id).eq('owner_id', userId)
+      if (error) return { error: new Error(error.message) }
+      await load()
+      return { error: null }
+    },
+    [userId, load],
+  )
+
+  return { ...state, refresh: load, createExpense, updateExpense, deleteExpense }
 }

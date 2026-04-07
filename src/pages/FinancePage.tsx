@@ -3,7 +3,7 @@ import { MetricCard } from '@/components/dashboard/MetricCard'
 import { useFinance } from '@/hooks/useFinance'
 import { useTranslation } from '@/hooks/useTranslation'
 import { formatDateInputLocal, formatHistoryDateTime, formatKzt, localeTagFromAppLocale } from '@/lib/format'
-import type { ExpenseCategory } from '@/types/database'
+import type { ExpenseCategory, ExpenseRow } from '@/types/database'
 import type { TranslationKey } from '@/locales/ru'
 
 function IconTrendUp() {
@@ -51,6 +51,13 @@ function categoryLabelKey(cat: string): TranslationKey {
 
 const CATEGORY_OPTIONS: ExpenseCategory[] = ['salary', 'rent', 'supplies', 'other']
 
+function parseAmountInput(raw: string): number | null {
+  const cleaned = raw.replace(/\s/g, '').replace(',', '.')
+  const n = Number(cleaned)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n
+}
+
 export function FinancePage() {
   const { t, locale } = useTranslation()
   const tag = localeTagFromAppLocale(locale)
@@ -64,6 +71,8 @@ export function FinancePage() {
     recentExpenses,
     refresh,
     createExpense,
+    updateExpense,
+    deleteExpense,
   } = useFinance()
 
   const [amount, setAmount] = useState('')
@@ -73,6 +82,15 @@ export function FinancePage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(false)
 
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editCategory, setEditCategory] = useState<ExpenseCategory>('supplies')
+  const [editOccurredDate, setEditOccurredDate] = useState('')
+  const [editNote, setEditNote] = useState('')
+  const [workingRowId, setWorkingRowId] = useState<string | null>(null)
+  const [rowFormError, setRowFormError] = useState(false)
+  const [listActionError, setListActionError] = useState(false)
+
   const revenueStr = formatKzt(revenueMonthKzt, tag)
   const expensesStr = formatKzt(expensesMonthKzt, tag)
   const profitStr = formatKzt(profitMonthKzt, tag)
@@ -81,9 +99,8 @@ export function FinancePage() {
     async (e: FormEvent) => {
       e.preventDefault()
       setFormError(false)
-      const raw = amount.replace(/\s/g, '').replace(',', '.')
-      const n = Number(raw)
-      if (!Number.isFinite(n) || n <= 0) {
+      const n = parseAmountInput(amount)
+      if (n == null) {
         setFormError(true)
         return
       }
@@ -106,6 +123,65 @@ export function FinancePage() {
     [amount, category, occurredDate, note, createExpense],
   )
 
+  const startEdit = useCallback((row: ExpenseRow) => {
+    setEditingId(row.id)
+    setEditAmount(String(row.amount_kzt))
+    setEditCategory(row.category)
+    setEditOccurredDate(formatDateInputLocal(new Date(row.occurred_at)))
+    setEditNote(row.note ?? '')
+    setRowFormError(false)
+    setListActionError(false)
+  }, [])
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null)
+    setRowFormError(false)
+  }, [])
+
+  const onSaveEdit = useCallback(
+    async (id: string) => {
+      setRowFormError(false)
+      const n = parseAmountInput(editAmount)
+      if (n == null) {
+        setRowFormError(true)
+        return
+      }
+      setWorkingRowId(id)
+      const { error } = await updateExpense(id, {
+        amount_kzt: n,
+        category: editCategory,
+        occurredDate: editOccurredDate,
+        note: editNote.trim() || null,
+      })
+      setWorkingRowId(null)
+      if (error) {
+        setRowFormError(true)
+        return
+      }
+      setEditingId(null)
+    },
+    [editAmount, editCategory, editOccurredDate, editNote, updateExpense],
+  )
+
+  const onDeleteRow = useCallback(
+    async (id: string) => {
+      if (!window.confirm(t('finance.confirmDeleteExpense'))) return
+      setWorkingRowId(id)
+      setRowFormError(false)
+      setListActionError(false)
+      const { error } = await deleteExpense(id)
+      setWorkingRowId(null)
+      if (error) {
+        setListActionError(true)
+        return
+      }
+      setEditingId((cur) => (cur === id ? null : cur))
+    },
+    [deleteExpense, t],
+  )
+
+  const rowBusy = workingRowId !== null
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -115,7 +191,10 @@ export function FinancePage() {
         </div>
         <button
           type="button"
-          onClick={() => void refresh()}
+          onClick={() => {
+            setListActionError(false)
+            void refresh()
+          }}
           disabled={loading}
           className="self-start rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
         >
@@ -223,6 +302,9 @@ export function FinancePage() {
             )}
           </div>
           <div className="p-2 sm:p-3">
+            {listActionError && (
+              <p className="mb-2 px-3 text-xs text-red-400/90">{t('finance.formError')}</p>
+            )}
             {loading ? (
               <ul className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -242,9 +324,90 @@ export function FinancePage() {
                 {recentExpenses.map((row) => {
                   const when = formatHistoryDateTime(row.occurred_at, tag)
                   const amt = formatKzt(row.amount_kzt, tag)
+                  const isEditing = editingId === row.id
+                  const thisBusy = workingRowId === row.id
+
+                  if (isEditing) {
+                    return (
+                      <li key={row.id} className="px-2 py-1 sm:px-3">
+                        <div className="space-y-3 rounded-xl border border-white/[0.08] bg-black/20 px-2 py-3 sm:px-3">
+                          <label className="block min-w-0">
+                            <span className="text-xs font-medium text-zinc-500">{t('finance.fieldAmount')}</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editAmount}
+                              onChange={(e) => setEditAmount(e.target.value)}
+                              disabled={thisBusy}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
+                              autoComplete="off"
+                            />
+                          </label>
+                          <label className="block min-w-0">
+                            <span className="text-xs font-medium text-zinc-500">{t('finance.fieldCategory')}</span>
+                            <select
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(e.target.value as ExpenseCategory)}
+                              disabled={thisBusy}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
+                            >
+                              {CATEGORY_OPTIONS.map((c) => (
+                                <option key={c} value={c}>
+                                  {t(categoryLabelKey(c))}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block min-w-0">
+                            <span className="text-xs font-medium text-zinc-500">{t('finance.fieldDate')}</span>
+                            <input
+                              type="date"
+                              value={editOccurredDate}
+                              onChange={(e) => setEditOccurredDate(e.target.value)}
+                              disabled={thisBusy}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 [color-scheme:dark] disabled:opacity-40"
+                            />
+                          </label>
+                          <label className="block min-w-0">
+                            <span className="text-xs font-medium text-zinc-500">{t('finance.fieldNote')}</span>
+                            <textarea
+                              value={editNote}
+                              onChange={(e) => setEditNote(e.target.value)}
+                              rows={2}
+                              disabled={thisBusy}
+                              className="mt-1 w-full resize-y rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
+                              placeholder={t('finance.notePlaceholder')}
+                            />
+                          </label>
+                          {rowFormError && (
+                            <p className="text-xs text-red-400/90">{t('finance.formError')}</p>
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={thisBusy || loading}
+                              onClick={() => void onSaveEdit(row.id)}
+                              className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-white transition hover:border-white/20 hover:bg-white/[0.1] disabled:opacity-40"
+                            >
+                              {thisBusy ? t('finance.saving') : t('finance.saveEdit')}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={thisBusy}
+                              onClick={cancelEdit}
+                              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-40"
+                            >
+                              {t('finance.cancelEdit')}
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    )
+                  }
+
                   return (
                     <li key={row.id} className="px-2 py-1 sm:px-3">
-                      <div className="flex flex-col gap-2 rounded-xl px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="flex flex-col gap-3 rounded-xl px-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="min-w-0 flex-1 space-y-1">
                           <p className="text-sm font-medium tabular-nums text-white">{when}</p>
                           <p className="text-xs font-medium text-zinc-400">{t(categoryLabelKey(row.category))}</p>
@@ -252,7 +415,27 @@ export function FinancePage() {
                             <p className="text-xs text-zinc-500">{row.note.trim()}</p>
                           ) : null}
                         </div>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-200">{amt}</span>
+                        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+                          <span className="text-sm font-semibold tabular-nums text-zinc-200">{amt}</span>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={rowBusy || loading}
+                              onClick={() => startEdit(row)}
+                              className="rounded-lg border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-40"
+                            >
+                              {t('finance.actionEdit')}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={rowBusy || loading}
+                              onClick={() => void onDeleteRow(row.id)}
+                              className="rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium text-rose-300/80 transition hover:bg-rose-500/10 disabled:opacity-40"
+                            >
+                              {t('finance.actionDelete')}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </li>
                   )
