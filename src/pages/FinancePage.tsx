@@ -407,7 +407,7 @@ export function FinancePage() {
 
                   return (
                     <li key={row.id} className="px-2 py-1 sm:px-3">
-                      <div className="flex flex-col gap-3 rounded-xl px-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div className="flex flex-col gap-3 rounded-xl px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                         <div className="min-w-0 flex-1 space-y-1">
                           <p className="text-sm font-medium tabular-nums text-white">{when}</p>
                           <p className="text-xs font-medium text-zinc-400">{t(categoryLabelKey(row.category))}</p>
@@ -415,26 +415,24 @@ export function FinancePage() {
                             <p className="text-xs text-zinc-500">{row.note.trim()}</p>
                           ) : null}
                         </div>
-                        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-                          <span className="text-sm font-semibold tabular-nums text-zinc-200">{amt}</span>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={rowBusy || loading}
-                              onClick={() => startEdit(row)}
-                              className="rounded-lg border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-40"
-                            >
-                              {t('finance.actionEdit')}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={rowBusy || loading}
-                              onClick={() => void onDeleteRow(row.id)}
-                              className="rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium text-rose-300/80 transition hover:bg-rose-500/10 disabled:opacity-40"
-                            >
-                              {t('finance.actionDelete')}
-                            </button>
-                          </div>
+                        <div className="flex shrink-0 flex-row flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3 sm:border-t-0 sm:pt-0">
+                          <span className="text-sm font-semibold tabular-nums text-zinc-100">{amt}</span>
+                          <button
+                            type="button"
+                            disabled={rowBusy || loading}
+                            onClick={() => startEdit(row)}
+                            className="rounded-lg border border-white/15 bg-white/[0.04] px-2.5 py-1.5 text-xs font-medium text-zinc-200 transition hover:border-white/25 hover:bg-white/[0.08] disabled:pointer-events-none disabled:opacity-45"
+                          >
+                            {t('finance.actionEdit')}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={rowBusy || loading}
+                            onClick={() => void onDeleteRow(row.id)}
+                            className="rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-2.5 py-1.5 text-xs font-medium text-rose-200/90 transition hover:border-rose-500/40 hover:bg-rose-500/10 disabled:pointer-events-none disabled:opacity-45"
+                          >
+                            {t('finance.actionDelete')}
+                          </button>
                         </div>
                       </div>
                     </li>
