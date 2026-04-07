@@ -199,6 +199,7 @@ export function AppointmentsPage() {
   const [newStaffId, setNewStaffId] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newClient, setNewClient] = useState('')
+  const [newPhone, setNewPhone] = useState('')
   const [newWhen, setNewWhen] = useState(() => defaultDatetimeLocalForSelectedDay(new Date()))
   const [formError, setFormError] = useState(false)
   const [working, setWorking] = useState(false)
@@ -221,6 +222,7 @@ export function AppointmentsPage() {
       staff_id: newStaffId,
       title: newTitle,
       client_name: newClient.trim() || null,
+      phone: newPhone.trim() || null,
       scheduled_at: datetimeLocalValueToIso(newWhen),
     })
     setWorking(false)
@@ -230,6 +232,7 @@ export function AppointmentsPage() {
     }
     setNewTitle('')
     setNewClient('')
+    setNewPhone('')
     setNewWhen(defaultDatetimeLocalForSelectedDay(selectedDate))
   }
 
@@ -372,6 +375,15 @@ export function AppointmentsPage() {
               onChange={(e) => setNewClient(e.target.value)}
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
               placeholder={t('appointments.fieldClientOptional')}
+            />
+          </label>
+          <label className="sm:col-span-2">
+            <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldPhone')}</span>
+            <input
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+              placeholder="+7 777 123 45 67"
             />
           </label>
           <label className="sm:col-span-2 lg:col-span-3">

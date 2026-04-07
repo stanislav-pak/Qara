@@ -29,6 +29,7 @@ export const ru = {
   'appointments.newRecord': 'Новая запись',
   'appointments.fieldTitle': 'Услуга / заголовок',
   'appointments.fieldClient': 'Клиент',
+  'appointments.fieldPhone': 'Телефон',
   'appointments.fieldStaff': 'Мастер',
   'appointments.selectStaff': 'Выберите мастера',
   'appointments.noActiveStaff': 'Нет активных сотрудников — добавьте их в разделе «Команда».',

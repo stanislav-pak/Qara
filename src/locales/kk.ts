@@ -32,6 +32,7 @@ export const kk: Record<TranslationKey, string> = {
   'appointments.newRecord': 'Жаңа жазба',
   'appointments.fieldTitle': 'Қызмет / тақырып',
   'appointments.fieldClient': 'Клиент',
+  'appointments.fieldPhone': 'Телефон',
   'appointments.fieldStaff': 'Шебер',
   'appointments.selectStaff': 'Шеберді таңдаңыз',
   'appointments.noActiveStaff': 'Белсенді қызметкер жоқ — «Команда» бөлімінен қосыңыз.',

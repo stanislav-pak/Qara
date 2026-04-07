@@ -99,6 +99,7 @@ export function useAppointments() {
       staff_id: string
       title: string
       client_name: string | null
+      phone: string | null
       scheduled_at: string
     }): Promise<{ error: Error | null }> => {
       if (!userId) return { error: new Error('no user') }
@@ -122,7 +123,7 @@ export function useAppointments() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           client_name: input.client_name?.trim() || '',
-          phone: null,
+          phone: input.phone?.trim() || '',
           service: input.title.trim() || 'Приём',
           staff: staffName,
           date,
