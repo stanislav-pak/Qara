@@ -26,11 +26,11 @@ export type OwnerDashboardState = {
   appointmentsToday: number
   revenueTodayKzt: number
   activeStaff: number
-  /** Записи за скользящие 7 суток (starts_at ≥ now−7d, без отменённых; без starts_at не попадают). */
+  /** Прошедшие записи за 7 суток (starts_at в окне и < сейчас, без отменённых). */
   appointmentsWeek: number
   /** Сумма appointment_services.price по этим записям. */
   revenueWeekKzt: number
-  /** Записи за скользящие 30 суток. */
+  /** Прошедшие записи за 30 суток (starts_at в окне и < сейчас). */
   appointmentsMonth: number
   revenueMonthKzt: number
   /** Выручка по календарным дням: услуги (starts_at) + sales_transactions (occurred_at). */
@@ -163,6 +163,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .eq('owner_id', userId)
           .not('starts_at', 'is', null)
           .gte('starts_at', weekAgoIso)
+          .lt('starts_at', nowIso)
           .neq('status', 'cancelled'),
         supabase
           .from('appointments')
@@ -170,6 +171,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .eq('owner_id', userId)
           .not('starts_at', 'is', null)
           .gte('starts_at', monthAgoIso)
+          .lt('starts_at', nowIso)
           .neq('status', 'cancelled'),
         supabase
           .from('appointments')
