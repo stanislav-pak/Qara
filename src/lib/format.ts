@@ -130,3 +130,23 @@ export function defaultDatetimeLocalForSelectedDay(selectedDate: Date): string {
   }
   return isoToDatetimeLocalValue(proposed.toISOString())
 }
+
+/** Алматы (Asia/Almaty, UTC+5): DD.MM.YYYY HH:mm:ss */
+export function formatAlmatyClock(d: Date): string {
+  const s = d.toLocaleString('sv-SE', {
+    timeZone: 'Asia/Almaty',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+  const parts = s.split(' ')
+  const datePart = parts[0] ?? ''
+  const timePart = parts[1] ?? ''
+  const [y, mo, day] = datePart.split('-')
+  if (!y || !mo || !day) return s
+  return `${day}.${mo}.${y} ${timePart}`
+}

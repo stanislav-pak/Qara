@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useTranslation } from '@/hooks/useTranslation'
+import { formatAlmatyClock } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import type { TranslationKey } from '@/locales/ru'
@@ -51,6 +52,14 @@ export function AppShell() {
   const email = useAuthStore((s) => s.user?.email)
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [almatyClock, setAlmatyClock] = useState(() => formatAlmatyClock(new Date()))
+
+  useEffect(() => {
+    const tick = () => setAlmatyClock(formatAlmatyClock(new Date()))
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [])
 
   useEffect(() => {
     setMenuOpen(false)
@@ -82,7 +91,13 @@ export function AppShell() {
             ))}
           </nav>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-3">
+          <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-3">
+            <span
+              className="max-w-[10.5rem] shrink-0 truncate text-[10px] font-medium tabular-nums text-zinc-500 sm:max-w-none sm:text-[11px]"
+              title="Asia/Almaty"
+            >
+              {almatyClock}
+            </span>
             <button
               type="button"
               onClick={() => setMenuOpen((o) => !o)}
