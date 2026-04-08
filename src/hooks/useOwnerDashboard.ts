@@ -102,7 +102,9 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
 
     setState((s) => ({ ...s, loading: true, loadError: false }))
     const { start, end } = localDayBoundsIso()
-    const nowIso = new Date().toISOString()
+    const nowUtc = new Date().toISOString()
+    /** Порог «прошло» для недели/месяца по бизнес-логике (см. UTC+5). */
+    const nowKZ = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString()
     const weekAgoIso = new Date(Date.now() - 7 * MS_DAY).toISOString()
     const monthAgoIso = new Date(Date.now() - 30 * MS_DAY).toISOString()
 
@@ -153,7 +155,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .from('appointments')
           .select('id, title, client_name, scheduled_at, status, staff_id')
           .eq('owner_id', userId)
-          .gte('scheduled_at', nowIso)
+          .gte('scheduled_at', nowUtc)
           .neq('status', 'cancelled')
           .order('scheduled_at', { ascending: true })
           .limit(12),
@@ -163,7 +165,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .eq('owner_id', userId)
           .not('starts_at', 'is', null)
           .gte('starts_at', weekAgoIso)
-          .lt('starts_at', nowIso)
+          .lt('starts_at', nowKZ)
           .neq('status', 'cancelled'),
         supabase
           .from('appointments')
@@ -171,7 +173,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .eq('owner_id', userId)
           .not('starts_at', 'is', null)
           .gte('starts_at', monthAgoIso)
-          .lt('starts_at', nowIso)
+          .lt('starts_at', nowKZ)
           .neq('status', 'cancelled'),
         supabase
           .from('appointments')

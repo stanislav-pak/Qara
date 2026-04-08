@@ -1,9 +1,30 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { useOwnerDashboard } from '@/hooks/useOwnerDashboard'
 import { MetricCard } from '@/components/dashboard/MetricCard'
 import { RevenueChart30d } from '@/components/dashboard/RevenueChart30d'
 import { UpcomingAppointmentsList } from '@/components/dashboard/UpcomingAppointmentsList'
 import { formatKzt, formatLocaleDateLong, localeTagFromAppLocale } from '@/lib/format'
+
+/** Часы для шапки: Алматы (UTC+5), формат DD.MM.YYYY HH:mm:ss */
+function formatAlmatyClock(d: Date): string {
+  const s = d.toLocaleString('sv-SE', {
+    timeZone: 'Asia/Almaty',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+  const parts = s.split(' ')
+  const datePart = parts[0] ?? ''
+  const timePart = parts[1] ?? ''
+  const [y, mo, day] = datePart.split('-')
+  if (!y || !mo || !day) return s
+  return `${day}.${mo}.${y} ${timePart}`
+}
 
 function IconCalendar() {
   return (
@@ -66,6 +87,14 @@ export function DashboardPage() {
   const revenueWeekStr = formatKzt(revenueWeekKzt, tag)
   const revenueMonthStr = formatKzt(revenueMonthKzt, tag)
 
+  const [almatyClock, setAlmatyClock] = useState(() => formatAlmatyClock(new Date()))
+  useEffect(() => {
+    const tick = () => setAlmatyClock(formatAlmatyClock(new Date()))
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -74,14 +103,19 @@ export function DashboardPage() {
           <p className="mt-1 text-sm text-zinc-500">{t('dashboard.subtitle')}</p>
           <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-600">{dateLine}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={loading}
-          className="self-start rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
-        >
-          {t('dashboard.refresh')}
-        </button>
+        <div className="flex flex-col items-end gap-2 self-start sm:flex-row sm:items-center sm:gap-3">
+          <span className="text-[11px] font-medium tabular-nums tracking-tight text-zinc-500">
+            {almatyClock}
+          </span>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+          >
+            {t('dashboard.refresh')}
+          </button>
+        </div>
       </div>
 
       {loadError && (
