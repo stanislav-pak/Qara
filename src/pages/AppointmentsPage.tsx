@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { AlmatyClock } from '@/components/AlmatyClock'
 import type {
   ActiveStaffOption,
   AppointmentDayRow,
@@ -296,17 +297,20 @@ export function AppointmentsPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-white">{t('appointments.title')}</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-500">{t('appointments.subtitle')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setFormError(false)
-            void refresh()
-          }}
-          disabled={loading || working}
-          className="self-start rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
-        >
-          {t('appointments.refresh')}
-        </button>
+        <div className="flex shrink-0 items-center gap-3 self-start">
+          <AlmatyClock />
+          <button
+            type="button"
+            onClick={() => {
+              setFormError(false)
+              void refresh()
+            }}
+            disabled={loading || working}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+          >
+            {t('appointments.refresh')}
+          </button>
+        </div>
       </div>
 
       {(loadError || formError) && (

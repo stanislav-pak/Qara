@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import * as XLSX from 'xlsx'
+import { AlmatyClock } from '@/components/AlmatyClock'
 import { useAppointmentHistory } from '@/hooks/useAppointmentHistory'
 import { useTranslation } from '@/hooks/useTranslation'
 import {
@@ -80,7 +81,8 @@ export function HistoryPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-white">{t('history.title')}</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-500">{t('history.subtitle')}</p>
         </div>
-        <div className="flex flex-wrap gap-2 self-start">
+        <div className="flex flex-wrap items-center gap-3 self-start">
+          <AlmatyClock />
           <button
             type="button"
             onClick={() => void onRefresh()}
