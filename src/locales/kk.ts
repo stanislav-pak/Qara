@@ -136,7 +136,8 @@ export const kk: Record<TranslationKey, string> = {
   'finance.loadError':
     'Деректер жүктелмеді. payments, sales_transactions, expenses кестелері мен RLS тексеріңіз.',
   'finance.metricRevenue': 'Кіріс (ай)',
-  'finance.hintRevenue': 'Ай үшін payments.total_amount және sales_transactions сомасы',
+  'finance.hintRevenue':
+    'Төлемдер, сатулар және айдағы өткен жазбалар бойынша қызметтер (appointment_services, starts_at, UTC+5)',
   'finance.metricExpenses': 'Шығыстар (ай)',
   'finance.hintExpenses': 'Ай үшін expenses.amount_kzt сомасы',
   'finance.metricProfit': 'Пайда (ай)',

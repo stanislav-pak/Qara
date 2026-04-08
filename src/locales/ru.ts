@@ -132,7 +132,8 @@ export const ru = {
   'finance.loadError':
     'Не удалось загрузить данные. Проверьте таблицы payments, sales_transactions, expenses и RLS в Supabase.',
   'finance.metricRevenue': 'Выручка (месяц)',
-  'finance.hintRevenue': 'Сумма payments.total_amount и sales_transactions за месяц',
+  'finance.hintRevenue':
+    'Платежи, продажи и услуги (appointment_services) по прошедшим записям месяца (starts_at, UTC+5 для «уже прошло»)',
   'finance.metricExpenses': 'Расходы (месяц)',
   'finance.hintExpenses': 'Сумма expenses.amount_kzt за месяц',
   'finance.metricProfit': 'Прибыль (месяц)',

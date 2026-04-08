@@ -13,6 +13,8 @@ export type FinanceState = {
   paymentsMonthKzt: number
   /** Сумма sales_transactions.amount_kzt за текущий месяц (по occurred_at). */
   salesMonthKzt: number
+  /** Сумма appointment_services.price за месяц по прошедшим записям (starts_at в месяце и раньше nowKZ). */
+  appointmentServicesMonthKzt: number
   revenueMonthKzt: number
   expensesMonthKzt: number
   profitMonthKzt: number
@@ -24,6 +26,7 @@ const initial: FinanceState = {
   loadError: false,
   paymentsMonthKzt: 0,
   salesMonthKzt: 0,
+  appointmentServicesMonthKzt: 0,
   revenueMonthKzt: 0,
   expensesMonthKzt: 0,
   profitMonthKzt: 0,
@@ -59,11 +62,12 @@ export function useFinance(): FinanceState & {
     }
 
     const { start, end } = localMonthBoundsIso()
+    const nowKZ = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString()
 
     setState((s) => ({ ...s, loading: true, loadError: false }))
 
     try {
-      const [payRes, salesRes, expSumRes, expListRes] = await Promise.all([
+      const [payRes, salesRes, expSumRes, expListRes, monthApptRes] = await Promise.all([
         supabase
           .from('payments')
           .select('total_amount')
@@ -89,9 +93,19 @@ export function useFinance(): FinanceState & {
           .order('occurred_at', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(RECENT_LIMIT),
+        supabase
+          .from('appointments')
+          .select('id')
+          .eq('owner_id', userId)
+          .not('starts_at', 'is', null)
+          .gte('starts_at', start)
+          .lte('starts_at', end)
+          .lt('starts_at', nowKZ)
+          .neq('status', 'cancelled'),
       ])
 
-      const anyErr = payRes.error || salesRes.error || expSumRes.error || expListRes.error
+      const anyErr =
+        payRes.error || salesRes.error || expSumRes.error || expListRes.error || monthApptRes.error
       if (anyErr) {
         console.warn('[finance]', anyErr)
         setState({
@@ -106,7 +120,28 @@ export function useFinance(): FinanceState & {
         payRes.data?.reduce((sum, row) => sum + Number(row.total_amount ?? 0), 0) ?? 0
       const salesMonthKzt =
         salesRes.data?.reduce((sum, row) => sum + Number(row.amount_kzt ?? 0), 0) ?? 0
-      const revenueMonthKzt = paymentsMonthKzt + salesMonthKzt
+
+      const monthApptIds = (monthApptRes.data ?? []).map((r) => r.id)
+      let appointmentServicesMonthKzt = 0
+      if (monthApptIds.length > 0) {
+        const { data: svcRows, error: svcErr } = await supabase
+          .from('appointment_services')
+          .select('price')
+          .in('appointment_id', monthApptIds)
+        if (svcErr) {
+          console.warn('[finance] appointment_services month', svcErr)
+          setState({
+            ...initial,
+            loading: false,
+            loadError: true,
+          })
+          return
+        }
+        appointmentServicesMonthKzt =
+          svcRows?.reduce((sum, row) => sum + Number(row.price ?? 0), 0) ?? 0
+      }
+
+      const revenueMonthKzt = paymentsMonthKzt + salesMonthKzt + appointmentServicesMonthKzt
       const expensesMonthKzt =
         expSumRes.data?.reduce((sum, row) => sum + Number(row.amount_kzt ?? 0), 0) ?? 0
       const profitMonthKzt = revenueMonthKzt - expensesMonthKzt
@@ -116,6 +151,7 @@ export function useFinance(): FinanceState & {
         loadError: false,
         paymentsMonthKzt,
         salesMonthKzt,
+        appointmentServicesMonthKzt,
         revenueMonthKzt,
         expensesMonthKzt,
         profitMonthKzt,
