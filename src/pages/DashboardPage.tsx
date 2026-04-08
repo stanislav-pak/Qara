@@ -1,9 +1,10 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from '@/hooks/useTranslation'
 import { useOwnerDashboard } from '@/hooks/useOwnerDashboard'
 import { MetricCard } from '@/components/dashboard/MetricCard'
 import { RevenueChart30d } from '@/components/dashboard/RevenueChart30d'
 import { UpcomingAppointmentsList } from '@/components/dashboard/UpcomingAppointmentsList'
-import { formatKzt, formatLocaleDateLong, localeTagFromAppLocale } from '@/lib/format'
+import { formatAlmatyClock, formatKzt, formatLocaleDateLong, localeTagFromAppLocale } from '@/lib/format'
 
 function IconCalendar() {
   return (
@@ -58,6 +59,14 @@ export function DashboardPage() {
     refresh,
   } = useOwnerDashboard()
 
+  const [almatyClock, setAlmatyClock] = useState(() => formatAlmatyClock(new Date()))
+  useEffect(() => {
+    const tick = () => setAlmatyClock(formatAlmatyClock(new Date()))
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
   const tag = localeTagFromAppLocale(locale)
   const today = new Date()
   const dateLine = formatLocaleDateLong(today, tag)
@@ -74,14 +83,22 @@ export function DashboardPage() {
           <p className="mt-1 text-sm text-zinc-500">{t('dashboard.subtitle')}</p>
           <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-600">{dateLine}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={loading}
-          className="self-start rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
-        >
-          {t('dashboard.refresh')}
-        </button>
+        <div className="flex shrink-0 items-center gap-3 self-start">
+          <span
+            className="text-[11px] font-medium tabular-nums text-zinc-500"
+            title="Asia/Almaty"
+          >
+            {almatyClock}
+          </span>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+          >
+            {t('dashboard.refresh')}
+          </button>
+        </div>
       </div>
 
       {loadError && (
