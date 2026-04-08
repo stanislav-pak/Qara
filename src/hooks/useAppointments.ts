@@ -118,18 +118,18 @@ export function useAppointments() {
       const d = new Date(input.scheduled_at)
       const date = Number.isNaN(d.getTime()) ? input.scheduled_at : d.toISOString().slice(0, 10)
       const time = Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(11, 16)
-      await fetch('https://n8n35164.hostkey.in/webhook/appointment-confirm', {
+      void fetch('https://n8n35164.hostkey.in/webhook/appointment-confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           client_name: input.client_name?.trim() || '',
           phone: input.phone?.trim() || '',
           service: input.title.trim() || 'Приём',
-          staff: staffName,
+          staff: staffName ?? '',
           date,
           time,
         }),
-      })
+      }).catch((err) => console.error('Webhook error:', err))
       await load()
       return { error: null }
     },
