@@ -9,13 +9,17 @@ import { useAppointments } from '@/hooks/useAppointments'
 import { useTranslation } from '@/hooks/useTranslation'
 import {
   datetimeLocalValueToIso,
-  defaultDatetimeLocalForSelectedDay,
   formatAppointmentSlot,
   formatDateInputLocal,
   isoToDatetimeLocalValue,
   localeTagFromAppLocale,
 } from '@/lib/format'
+import { supabase } from '@/lib/supabase'
+import { generateTimeSlots, type TimeSlot as DayTimeSlot } from '@/lib/timeSlots'
+import { useAuthStore } from '@/store/authStore'
 import type { TranslationKey } from '@/locales/ru'
+
+const CREATE_DURATION_OPTIONS = [30, 45, 60, 90, 120] as const
 
 const STATUS_VALUES: AppointmentStatus[] = ['scheduled', 'completed', 'no_show', 'cancelled']
 
@@ -204,6 +208,7 @@ function AppointmentEditModal({ row, staffOptions, t, working, onClose, onSave }
 export function AppointmentsPage() {
   const { t, locale } = useTranslation()
   const tag = localeTagFromAppLocale(locale)
+  const userId = useAuthStore((s) => s.user?.id)
   const {
     selectedDate,
     setSelectedDate,
@@ -223,16 +228,61 @@ export function AppointmentsPage() {
   const [newTitle, setNewTitle] = useState('')
   const [newClient, setNewClient] = useState('')
   const [newPhone, setNewPhone] = useState('')
-  const [newWhen, setNewWhen] = useState(() => defaultDatetimeLocalForSelectedDay(new Date()))
+  const [newDurationMin, setNewDurationMin] = useState<number>(60)
+  const [newSelectedTime, setNewSelectedTime] = useState('')
+  const [createSlots, setCreateSlots] = useState<DayTimeSlot[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
   const [formError, setFormError] = useState(false)
   const [working, setWorking] = useState(false)
   const [editing, setEditing] = useState<AppointmentDayRow | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
-    setNewWhen(defaultDatetimeLocalForSelectedDay(selectedDate))
+    setNewSelectedTime('')
     setFormError(false)
-  }, [selectedDate])
+  }, [selectedDate, newStaffId, newDurationMin])
+
+  useEffect(() => {
+    if (!userId || !newStaffId.trim()) {
+      setCreateSlots([])
+      setSlotsLoading(false)
+      return
+    }
+    const dayStr = formatDateInputLocal(selectedDate)
+    let cancelled = false
+    setSlotsLoading(true)
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('starts_at, ends_at')
+        .eq('owner_id', userId)
+        .eq('staff_id', newStaffId.trim())
+        .gte('starts_at', `${dayStr}T00:00:00`)
+        .lte('starts_at', `${dayStr}T23:59:59`)
+        .not('status', 'in', '(cancelled,no_show)')
+      if (cancelled) return
+      if (error) {
+        console.warn('[appointments] create slots', error)
+        setCreateSlots([])
+        setSlotsLoading(false)
+        return
+      }
+      const booked = (data ?? [])
+        .filter((r): r is { starts_at: string; ends_at: string | null } => Boolean(r?.starts_at))
+        .map((r) => {
+          const starts = r.starts_at as string
+          const end =
+            r.ends_at ??
+            new Date(new Date(starts).getTime() + 60 * 60 * 1000).toISOString()
+          return { starts_at: starts, ends_at: end }
+        })
+      setCreateSlots(generateTimeSlots(9, 21, newDurationMin, booked))
+      setSlotsLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [userId, newStaffId, selectedDate, newDurationMin, appointments])
 
   const goToday = useCallback(() => {
     setSelectedDate(new Date())
@@ -240,14 +290,18 @@ export function AppointmentsPage() {
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!newSelectedTime.trim()) return
     setFormError(false)
     setWorking(true)
+    const dayStr = formatDateInputLocal(selectedDate)
+    const scheduledLocal = `${dayStr}T${newSelectedTime.trim()}:00`
     const { error } = await createAppointment({
       staff_id: newStaffId,
       title: newTitle,
       client_name: newClient.trim() || null,
       phone: newPhone.trim() || null,
-      scheduled_at: datetimeLocalValueToIso(newWhen),
+      scheduled_at: datetimeLocalValueToIso(scheduledLocal),
+      duration_minutes: newDurationMin,
     })
     setWorking(false)
     if (error) {
@@ -257,7 +311,7 @@ export function AppointmentsPage() {
     setNewTitle('')
     setNewClient('')
     setNewPhone('')
-    setNewWhen(defaultDatetimeLocalForSelectedDay(selectedDate))
+    setNewSelectedTime('')
   }
 
   const onSaveEdit = async (patch: Parameters<EditModalProps['onSave']>[0]) => {
@@ -413,22 +467,72 @@ export function AppointmentsPage() {
               placeholder="+7 777 123 45 67"
             />
           </label>
-          <label className="sm:col-span-2 lg:col-span-3">
-            <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldDateTime')}</span>
-            <input
-              type="datetime-local"
-              value={newWhen}
-              onChange={(e) => setNewWhen(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-            />
+          <p className="text-xs text-zinc-600 sm:col-span-2">
+            {t('appointments.fieldDateTime')}:{' '}
+            <span className="font-medium text-zinc-400">
+              {new Intl.DateTimeFormat(tag, {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              }).format(selectedDate)}
+            </span>
+          </p>
+          <label className="sm:col-span-2 lg:col-span-1">
+            <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldDuration')}</span>
+            <select
+              value={newDurationMin}
+              onChange={(e) => setNewDurationMin(Number(e.target.value))}
+              disabled={loading || activeStaff.length === 0}
+              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
+            >
+              {CREATE_DURATION_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
           </label>
-          <div className="flex items-end sm:col-span-2 lg:col-span-1">
+          <div className="sm:col-span-2 lg:col-span-3">
+            <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldTime')}</span>
+            {!newStaffId.trim() ? (
+              <p className="mt-2 text-sm text-zinc-600">{t('appointments.selectStaff')}</p>
+            ) : slotsLoading ? (
+              <div className="mt-3 flex justify-center py-4">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-[var(--color-accent)]" />
+              </div>
+            ) : (
+              <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5">
+                {createSlots.map((slot) => (
+                  <button
+                    key={slot.time}
+                    type="button"
+                    disabled={!slot.available}
+                    onClick={() => {
+                      if (slot.available) setNewSelectedTime(slot.time)
+                    }}
+                    className={`rounded-xl py-2.5 text-sm font-medium transition-all ${
+                      newSelectedTime === slot.time
+                        ? 'border border-[var(--color-accent)]/60 bg-[var(--color-accent)]/20 text-white'
+                        : !slot.available
+                          ? 'cursor-not-allowed bg-white/[0.02] text-zinc-700'
+                          : 'border border-white/10 bg-white/[0.03] text-zinc-300 hover:border-[var(--color-accent)]/50 hover:text-white'
+                    }`}
+                  >
+                    {slot.time}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex items-end sm:col-span-2 lg:col-span-4">
             <button
               type="submit"
               disabled={
                 working ||
                 loading ||
                 !newStaffId.trim() ||
+                !newSelectedTime.trim() ||
                 activeStaff.length === 0
               }
               className="w-full rounded-xl bg-[var(--color-accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-accent-muted)] disabled:opacity-40"

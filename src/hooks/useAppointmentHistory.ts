@@ -100,7 +100,14 @@ export function useAppointmentHistory(
       return
     }
 
-    const list = (appts ?? []) as AppointmentRow[]
+    const rawList = (appts ?? []) as AppointmentRow[]
+    const byId = new Map<string, AppointmentRow>()
+    for (const a of rawList) {
+      if (!byId.has(a.id)) byId.set(a.id, a)
+    }
+    const list = [...byId.values()].sort(
+      (a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime(),
+    )
     if (list.length === 0) {
       setRows([])
       setLoadError(false)

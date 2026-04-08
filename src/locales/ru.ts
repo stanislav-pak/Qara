@@ -33,6 +33,8 @@ export const ru = {
   'appointments.noActiveStaff': 'Нет активных сотрудников — добавьте их в разделе «Команда».',
   'appointments.fieldClientOptional': 'необязательно',
   'appointments.fieldDateTime': 'Дата и время',
+  'appointments.fieldDuration': 'Длительность, мин',
+  'appointments.fieldTime': 'Время',
   'appointments.fieldStatus': 'Статус',
   'appointments.submitCreate': 'Добавить запись',
   'appointments.creating': 'Сохранение…',

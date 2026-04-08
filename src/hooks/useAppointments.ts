@@ -101,9 +101,16 @@ export function useAppointments() {
       client_name: string | null
       phone: string | null
       scheduled_at: string
+      /** Длина записи в минутах; конец интервала пишется в ends_at (слоты / пересечения). */
+      duration_minutes?: number
     }): Promise<{ error: Error | null }> => {
       if (!userId) return { error: new Error('no user') }
       if (!input.staff_id?.trim()) return { error: new Error('staff required') }
+      const durationMin = Math.max(1, input.duration_minutes ?? 60)
+      const startMs = new Date(input.scheduled_at).getTime()
+      const endsIso = Number.isNaN(startMs)
+        ? null
+        : new Date(startMs + durationMin * 60 * 1000).toISOString()
       const { error } = await supabase.from('appointments').insert({
         owner_id: userId,
         staff_id: input.staff_id.trim(),
@@ -111,6 +118,7 @@ export function useAppointments() {
         client_name: input.client_name?.trim() || null,
         scheduled_at: input.scheduled_at,
         starts_at: input.scheduled_at,
+        ends_at: endsIso,
         status: 'scheduled',
       })
       if (error) return { error: new Error(error.message) }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { generateTimeSlots, type TimeSlot } from '@/lib/timeSlots'
 
 /** Same UUID as in Supabase RLS policies for anon booking (see supabase/public_booking_rls.sql). */
 function bookingOwnerId(): string | undefined {
@@ -27,38 +28,7 @@ interface Service {
   category: string
 }
 
-interface TimeSlot {
-  time: string
-  available: boolean
-}
-
 type BookingStep = 'staff' | 'service' | 'datetime' | 'contact' | 'success'
-
-function generateTimeSlots(
-  startHour: number,
-  endHour: number,
-  duration: number,
-  bookedSlots: { starts_at: string; ends_at: string }[]
-): TimeSlot[] {
-  const slots: TimeSlot[] = []
-  for (let h = startHour; h < endHour; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-      const slotStart = h * 60 + m
-      const slotEnd = slotStart + duration
-      if (slotEnd > endHour * 60) break
-      const isBooked = bookedSlots.some((booked) => {
-        const bStart = new Date(booked.starts_at)
-        const bEnd = new Date(booked.ends_at)
-        const bStartMin = bStart.getHours() * 60 + bStart.getMinutes()
-        const bEndMin = bEnd.getHours() * 60 + bEnd.getMinutes()
-        return slotStart < bEndMin && slotEnd > bStartMin
-      })
-      slots.push({ time: timeStr, available: !isBooked })
-    }
-  }
-  return slots
-}
 
 export function BookingPage() {
   const [step, setStep] = useState<BookingStep>('staff')

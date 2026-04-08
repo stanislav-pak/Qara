@@ -36,6 +36,8 @@ export const kk: Record<TranslationKey, string> = {
   'appointments.noActiveStaff': 'Белсенді қызметкер жоқ — «Команда» бөлімінен қосыңыз.',
   'appointments.fieldClientOptional': 'міндетті емес',
   'appointments.fieldDateTime': 'Күні мен уақыты',
+  'appointments.fieldDuration': 'Ұзақтығы, мин',
+  'appointments.fieldTime': 'Уақыт',
   'appointments.fieldStatus': 'Күйі',
   'appointments.submitCreate': 'Жазбаны қосу',
   'appointments.creating': 'Сақталуда…',
