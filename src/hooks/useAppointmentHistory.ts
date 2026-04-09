@@ -74,7 +74,7 @@ export function useAppointmentHistory(
       .limit(FETCH_LIMIT)
 
     if (staffId.trim()) {
-      q = q.eq('staff_member_id', staffId.trim())
+      q = q.eq('staff_id', staffId.trim())
     }
     if (status.trim()) {
       q = q.eq('status', status.trim())
@@ -116,7 +116,7 @@ export function useAppointmentHistory(
     }
 
     const clientIds = [...new Set(list.map((a) => a.client_id).filter((id): id is string => Boolean(id)))]
-    const staffIds = [...new Set(list.map((a) => a.staff_member_id).filter((id): id is string => Boolean(id)))]
+    const staffIds = [...new Set(list.map((a) => a.staff_id).filter((id): id is string => Boolean(id)))]
     const apptIds = list.map((a) => a.id)
 
     const [clientsRes, staffRes, svcRes] = await Promise.all([
@@ -151,7 +151,7 @@ export function useAppointmentHistory(
         fromClient?.phone != null && String(fromClient.phone).trim() !== ''
           ? String(fromClient.phone).trim()
           : null
-      const staff_name = a.staff_member_id ? staffMap.get(a.staff_member_id) ?? null : null
+      const staff_name = a.staff_id ? staffMap.get(a.staff_id) ?? null : null
 
       return {
         id: a.id,

@@ -4,9 +4,9 @@ import { localDayBoundsFor } from '@/lib/format'
 
 /**
  * Имя колонки FK мастера в `public.appointments` (→ staff_members.id).
- * Должно совпадать с типом в `src/types/database.ts` (`staff_member_id`).
+ * Должно совпадать с типом в `src/types/database.ts` (`staff_id`).
  */
-export const APPOINTMENT_STAFF_FK = 'staff_member_id' as const
+export const APPOINTMENT_STAFF_FK = 'staff_id' as const
 
 export type OccupiedInterval = { startMs: number; endMs: number }
 
@@ -67,32 +67,19 @@ export async function fetchDurationMinutesByAppointmentIds(
   return out
 }
 
-export type OccupiedAppointmentRowInput = {
-  id: string
-  starts_at: string | null
-  staff_member_id?: string | null
-}
-
 /**
  * Занятый интервал: [starts_at, starts_at + duration_minutes).
  * Если duration неизвестна (0), подставляется +60 мин от starts_at.
  */
 export function appointmentRowsToOccupiedIntervals(
-  rows: OccupiedAppointmentRowInput[],
+  rows: { id: string; starts_at: string | null }[],
   durationMinutesByAppointmentId: Map<string, number>,
 ): OccupiedInterval[] {
   const out: OccupiedInterval[] = []
   for (const row of rows) {
-    const duration = durationMinutesByAppointmentId.get(row.id) ?? 0
-    console.log('[occupiedSlots] appointmentRowsToOccupiedIntervals row', {
-      id: row.id,
-      starts_at: row.starts_at,
-      staff_member_id: row.staff_member_id ?? null,
-      duration,
-    })
     if (!row.starts_at) continue
     const startMs = new Date(row.starts_at).getTime()
-    const dur = duration
+    const dur = durationMinutesByAppointmentId.get(row.id) ?? 0
     const endMs = dur > 0 ? startMs + dur * 60 * 1000 : startMs + 60 * 60 * 1000
     if (endMs <= startMs) continue
     out.push({ startMs, endMs })
@@ -115,7 +102,7 @@ function groupIntervalsByStaff(
     const startsAt = typeof raw.starts_at === 'string' ? raw.starts_at : null
     if (!staffId || !id || !startsAt || !map.has(staffId)) continue
     const [interval] = appointmentRowsToOccupiedIntervals(
-      [{ id, starts_at: startsAt, staff_member_id: staffId }],
+      [{ id, starts_at: startsAt }],
       durationByAppt,
     )
     if (interval) map.get(staffId)!.push(interval)
@@ -214,6 +201,7 @@ export async function loadDayCreationTimeSlots(
     dayStartIso,
     dayEndIso,
     staffMode: args.staffMode,
+    /** В БД колонка `staff_id`, не `staff_member_id`. */
     filter: 'none (all appointments for day; staff applied in memory)',
     rowCount: rawRows.length,
     rows: rawRows.map((r) => ({
@@ -230,21 +218,12 @@ export async function loadDayCreationTimeSlots(
 
   if (args.staffMode.kind === 'single') {
     const sid = args.staffMode.staffMemberId
-    const filteredForStaff = rawRows.filter((r) => readAppointmentStaffId(r) === sid)
-    console.log('[occupiedSlots] single mode: rows after staff_member_id filter', {
-      selectedStaffMemberId: sid,
-      count: filteredForStaff.length,
-      rows: filteredForStaff.map((r) => ({
-        id: r.id,
-        starts_at: r.starts_at,
-        staff_member_id: readAppointmentStaffId(r),
-      })),
-    })
-    const rows: OccupiedAppointmentRowInput[] = filteredForStaff.map((r) => ({
-      id: r.id as string,
-      starts_at: typeof r.starts_at === 'string' ? r.starts_at : null,
-      staff_member_id: readAppointmentStaffId(r),
-    }))
+    const rows = rawRows
+      .filter((r) => readAppointmentStaffId(r) === sid)
+      .map((r) => ({
+        id: r.id as string,
+        starts_at: typeof r.starts_at === 'string' ? r.starts_at : null,
+      }))
     const occupied = appointmentRowsToOccupiedIntervals(rows, durationByAppt)
     const byStaff = new Map<string, OccupiedInterval[]>([[sid, occupied]])
 

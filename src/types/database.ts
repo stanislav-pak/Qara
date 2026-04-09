@@ -16,7 +16,7 @@ export interface Database {
           title: string
           client_name: string | null
           client_id: string | null
-          staff_member_id: string | null
+          staff_id: string | null
           scheduled_at: string
           starts_at: string | null
           ends_at: string | null
@@ -31,7 +31,7 @@ export interface Database {
           title?: string
           client_name?: string | null
           client_id?: string | null
-          staff_member_id?: string | null
+          staff_id?: string | null
           scheduled_at?: string
           starts_at?: string | null
           ends_at?: string | null
@@ -46,7 +46,7 @@ export interface Database {
           title?: string
           client_name?: string | null
           client_id?: string | null
-          staff_member_id?: string | null
+          staff_id?: string | null
           scheduled_at?: string
           starts_at?: string | null
           ends_at?: string | null

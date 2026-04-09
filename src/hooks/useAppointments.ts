@@ -108,7 +108,7 @@ export function useAppointments() {
           const agg = aggByAppt.get(a.id)
           return {
             ...a,
-            staff_name: a.staff_member_id ? staffById.get(a.staff_member_id) ?? null : null,
+            staff_name: a.staff_id ? staffById.get(a.staff_id) ?? null : null,
             amount_kzt: agg?.amountKzt ?? 0,
             duration_minutes: agg?.durationMinutes ?? 0,
           }
@@ -141,7 +141,7 @@ export function useAppointments() {
 
   const createAppointment = useCallback(
     async (input: {
-      staff_member_id: string
+      staff_id: string
       title: string
       client_name: string | null
       phone: string | null
@@ -150,7 +150,7 @@ export function useAppointments() {
       duration_minutes?: number
     }): Promise<{ error: Error | null }> => {
       if (!userId) return { error: new Error('no user') }
-      if (!input.staff_member_id?.trim()) return { error: new Error('staff required') }
+      if (!input.staff_id?.trim()) return { error: new Error('staff required') }
       const durationMin = Math.max(1, input.duration_minutes ?? 60)
       const startMs = new Date(input.scheduled_at).getTime()
       const endsIso = Number.isNaN(startMs)
@@ -158,7 +158,7 @@ export function useAppointments() {
         : new Date(startMs + durationMin * 60 * 1000).toISOString()
       const { error } = await supabase.from('appointments').insert({
         owner_id: userId,
-        staff_member_id: input.staff_member_id.trim(),
+        staff_id: input.staff_id.trim(),
         title: input.title.trim() || 'Приём',
         client_name: input.client_name?.trim() || null,
         scheduled_at: input.scheduled_at,
@@ -167,7 +167,7 @@ export function useAppointments() {
         status: 'scheduled',
       })
       if (error) return { error: new Error(error.message) }
-      const staffName = activeStaff.find((s) => s.id === input.staff_member_id.trim())?.full_name ?? null
+      const staffName = activeStaff.find((s) => s.id === input.staff_id.trim())?.full_name ?? null
       const d = new Date(input.scheduled_at)
       const date = Number.isNaN(d.getTime()) ? input.scheduled_at : d.toISOString().slice(0, 10)
       const time = Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(11, 16)
@@ -193,7 +193,7 @@ export function useAppointments() {
     async (
       id: string,
       patch: Partial<{
-        staff_member_id: string | null
+        staff_id: string | null
         title: string
         client_name: string | null
         scheduled_at: string
