@@ -75,11 +75,15 @@ export function formatLocaleDateLong(date: Date, localeTag: string): string {
   }).format(date)
 }
 
+/** IANA: Алматы = UTC+5 (не India UTC+5:30). Для списков записей и истории. */
+export const ALMATY_IANA_TIMEZONE = 'Asia/Almaty'
+
 export function formatAppointmentSlot(iso: string, localeTag: string): { date: string; time: string } {
   const d = new Date(iso)
+  const tz = { timeZone: ALMATY_IANA_TIMEZONE }
   return {
-    date: new Intl.DateTimeFormat(localeTag, { day: 'numeric', month: 'short' }).format(d),
-    time: new Intl.DateTimeFormat(localeTag, { hour: '2-digit', minute: '2-digit' }).format(d),
+    date: new Intl.DateTimeFormat(localeTag, { day: 'numeric', month: 'short', ...tz }).format(d),
+    time: new Intl.DateTimeFormat(localeTag, { hour: '2-digit', minute: '2-digit', ...tz }).format(d),
   }
 }
 
@@ -99,9 +103,10 @@ export function formatKzPhoneDisplay(raw: string | null | undefined): string | n
   return trimmed
 }
 
-/** Дата и время для списка истории записей. */
+/** Дата и время для списка истории записей (часовой пояс Алматы). */
 export function formatHistoryDateTime(iso: string, localeTag: string): string {
   return new Intl.DateTimeFormat(localeTag, {
+    timeZone: ALMATY_IANA_TIMEZONE,
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -149,7 +154,7 @@ export function defaultDatetimeLocalForSelectedDay(selectedDate: Date): string {
 /** Алматы (Asia/Almaty, UTC+5): DD.MM.YYYY HH:mm:ss */
 export function formatAlmatyClock(d: Date): string {
   const s = d.toLocaleString('sv-SE', {
-    timeZone: 'Asia/Almaty',
+    timeZone: ALMATY_IANA_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
