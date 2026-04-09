@@ -177,14 +177,19 @@ export async function loadDayCreationTimeSlots(
   const slotStep = args.slotStepMinutes ?? 30
   const { start: dayStartIso, end: dayEndIso } = localDayBoundsFor(args.selectedDate)
 
-  /** Все записи за календарный день по салону (без фильтра по мастеру — иначе в БД уходит .eq(staff) и приходит только часть строк). Фильтр по мастеру — ниже, при расчёте занятости. */
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from('appointments')
     .select(`id, starts_at, ends_at, ${APPOINTMENT_STAFF_FK}`)
     .eq('owner_id', args.ownerId)
     .gte('starts_at', dayStartIso)
     .lte('starts_at', dayEndIso)
     .not('status', 'in', '(cancelled,no_show)')
+
+  /** Занятость считается только по выбранным мастерам, не по всему салону. */
+  const { data, error } =
+    args.staffMode.kind === 'single'
+      ? await baseQuery.eq(APPOINTMENT_STAFF_FK, args.staffMode.staffMemberId)
+      : await baseQuery.in(APPOINTMENT_STAFF_FK, args.staffMode.staffMemberIds)
 
   if (error) {
     console.warn('[occupiedSlots] appointments', error)
@@ -196,7 +201,10 @@ export async function loadDayCreationTimeSlots(
     dayStartIso,
     dayEndIso,
     staffMode: args.staffMode,
-    filter: 'none (all appointments for day; staff applied in memory)',
+    filter:
+      args.staffMode.kind === 'single'
+        ? { column: APPOINTMENT_STAFF_FK, op: 'eq', staffId: args.staffMode.staffMemberId }
+        : { column: APPOINTMENT_STAFF_FK, op: 'in', staffIds: args.staffMode.staffMemberIds },
     rowCount: rawRows.length,
     rows: rawRows.map((r) => ({
       id: r.id,
