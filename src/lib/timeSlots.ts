@@ -49,3 +49,45 @@ export function generateTimeSlots(
   }
   return slots
 }
+
+/** По каждому мастеру занятость = точное совпадение HH:MM со starts_at; слот доступен, если хотя бы у одного мастера время свободно. */
+export function generateAggregateTimeSlotsExactStart(
+  startHour: number,
+  endHour: number,
+  duration: number,
+  staffIds: string[],
+  bookedStartTimeByStaffId: Map<string, Set<string>>,
+): TimeSlot[] {
+  const slots: TimeSlot[] = []
+  if (staffIds.length === 0) return []
+  for (let h = startHour; h < endHour; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+      const slotStart = h * 60 + m
+      const slotEnd = slotStart + duration
+      if (slotEnd > endHour * 60) break
+      const anyFree = staffIds.some((id) => !bookedStartTimeByStaffId.get(id)?.has(timeStr))
+      slots.push({ time: timeStr, available: anyFree })
+    }
+  }
+  return slots
+}
+
+/** Локальные времена начала записей (HH:MM) по staff_id для exactStart. */
+export function buildBookedStartTimesByStaff(
+  rows: { staff_id: string | null; starts_at: string | null }[],
+  staffIds: string[],
+): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>()
+  for (const id of staffIds) {
+    map.set(id, new Set())
+  }
+  for (const row of rows) {
+    if (!row.staff_id || !row.starts_at) continue
+    if (!map.has(row.staff_id)) continue
+    const d = new Date(row.starts_at)
+    const key = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    map.get(row.staff_id)!.add(key)
+  }
+  return map
+}

@@ -16,13 +16,21 @@ import {
 } from '@/lib/format'
 import { digitsToE164Plus7 } from '@/lib/kzPhone'
 import { supabase } from '@/lib/supabase'
-import { generateTimeSlots, type TimeSlot as DayTimeSlot } from '@/lib/timeSlots'
+import {
+  buildBookedStartTimesByStaff,
+  generateAggregateTimeSlotsExactStart,
+  generateTimeSlots,
+  type TimeSlot as DayTimeSlot,
+} from '@/lib/timeSlots'
 import { useAuthStore } from '@/store/authStore'
 import type { TranslationKey } from '@/locales/ru'
 
 const CREATE_DURATION_OPTIONS: number[] = [30, 45, 60, 90, 120]
 
 const SERVICE_OTHER = '__other__' as const
+
+/** Режим «все мастера» в форме новой записи */
+const STAFF_ALL = '__all__' as const
 
 type ServiceOption = { id: string; name: string; duration: number }
 
@@ -245,6 +253,9 @@ export function AppointmentsPage() {
   const [newPhoneDigits, setNewPhoneDigits] = useState('')
   const [newDurationMin, setNewDurationMin] = useState<number>(60)
   const [newSelectedTime, setNewSelectedTime] = useState('')
+  const [pendingStaffIdForSlot, setPendingStaffIdForSlot] = useState('')
+  const [staffBookedStarts, setStaffBookedStarts] = useState<Map<string, Set<string>>>(() => new Map())
+  const [staffPickerTime, setStaffPickerTime] = useState<string | null>(null)
   const [createSlots, setCreateSlots] = useState<DayTimeSlot[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [formError, setFormError] = useState(false)
@@ -280,19 +291,57 @@ export function AppointmentsPage() {
 
   useEffect(() => {
     setNewSelectedTime('')
+    setPendingStaffIdForSlot('')
+    setStaffPickerTime(null)
     setFormError(false)
   }, [selectedDate, newStaffId, newDurationMin])
 
   useEffect(() => {
-    if (!userId || !newStaffId.trim()) {
+    if (!userId || activeStaff.length === 0) {
       setCreateSlots([])
+      setStaffBookedStarts(new Map())
       setSlotsLoading(false)
       return
     }
+    if (!newStaffId.trim()) {
+      setCreateSlots([])
+      setStaffBookedStarts(new Map())
+      setSlotsLoading(false)
+      return
+    }
+
     const dayStr = formatDateInputLocal(selectedDate)
+    const staffIds = activeStaff.map((s) => s.id)
     let cancelled = false
     setSlotsLoading(true)
+
     ;(async () => {
+      if (newStaffId === STAFF_ALL) {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('staff_id, starts_at')
+          .eq('owner_id', userId)
+          .in('staff_id', staffIds)
+          .gte('starts_at', `${dayStr}T00:00:00`)
+          .lte('starts_at', `${dayStr}T23:59:59`)
+          .not('status', 'in', '(cancelled,no_show)')
+        if (cancelled) return
+        if (error) {
+          console.warn('[appointments] create slots (all staff)', error)
+          setCreateSlots([])
+          setStaffBookedStarts(new Map())
+          setSlotsLoading(false)
+          return
+        }
+        const bookedMap = buildBookedStartTimesByStaff(data ?? [], staffIds)
+        setStaffBookedStarts(bookedMap)
+        setCreateSlots(
+          generateAggregateTimeSlotsExactStart(9, 21, newDurationMin, staffIds, bookedMap),
+        )
+        setSlotsLoading(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from('appointments')
         .select('starts_at, ends_at')
@@ -305,9 +354,11 @@ export function AppointmentsPage() {
       if (error) {
         console.warn('[appointments] create slots', error)
         setCreateSlots([])
+        setStaffBookedStarts(new Map())
         setSlotsLoading(false)
         return
       }
+      setStaffBookedStarts(new Map())
       const booked = (data ?? [])
         .filter((r): r is { starts_at: string; ends_at: string | null } => Boolean(r?.starts_at))
         .map((r) => {
@@ -323,7 +374,16 @@ export function AppointmentsPage() {
     return () => {
       cancelled = true
     }
-  }, [userId, newStaffId, selectedDate, newDurationMin, appointments])
+  }, [userId, newStaffId, selectedDate, newDurationMin, appointments, activeStaff])
+
+  useEffect(() => {
+    if (!staffPickerTime) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setStaffPickerTime(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [staffPickerTime])
 
   const goToday = useCallback(() => {
     setSelectedDate(new Date())
@@ -332,6 +392,8 @@ export function AppointmentsPage() {
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newSelectedTime.trim() || !newServiceId) return
+    const staffIdResolved = newStaffId === STAFF_ALL ? pendingStaffIdForSlot : newStaffId
+    if (!staffIdResolved.trim()) return
     setFormError(false)
     setWorking(true)
     const dayStr = formatDateInputLocal(selectedDate)
@@ -342,7 +404,7 @@ export function AppointmentsPage() {
         : serviceList.find((s) => s.id === newServiceId)?.name.trim() || newTitleOther.trim() || 'Приём'
     const phoneE164 = digitsToE164Plus7(newPhoneDigits)
     const { error } = await createAppointment({
-      staff_id: newStaffId,
+      staff_id: staffIdResolved,
       title: titleResolved,
       client_name: newClient.trim() || null,
       phone: phoneE164,
@@ -359,6 +421,7 @@ export function AppointmentsPage() {
     setNewClient('')
     setNewPhoneDigits('')
     setNewSelectedTime('')
+    setPendingStaffIdForSlot('')
   }
 
   const onSaveEdit = async (patch: Parameters<EditModalProps['onSave']>[0]) => {
@@ -480,6 +543,7 @@ export function AppointmentsPage() {
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
             >
               <option value="">{t('appointments.selectStaff')}</option>
+              <option value={STAFF_ALL}>{t('appointments.allStaff')}</option>
               {activeStaff.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.full_name}
@@ -594,7 +658,22 @@ export function AppointmentsPage() {
                     type="button"
                     disabled={!slot.available}
                     onClick={() => {
-                      if (slot.available) setNewSelectedTime(slot.time)
+                      if (!slot.available) return
+                      if (newStaffId === STAFF_ALL) {
+                        const free = activeStaff.filter(
+                          (s) => !staffBookedStarts.get(s.id)?.has(slot.time),
+                        )
+                        if (free.length === 0) return
+                        if (free.length === 1) {
+                          setPendingStaffIdForSlot(free[0].id)
+                          setNewSelectedTime(slot.time)
+                          return
+                        }
+                        setStaffPickerTime(slot.time)
+                        return
+                      }
+                      setPendingStaffIdForSlot('')
+                      setNewSelectedTime(slot.time)
                     }}
                     className={`rounded-xl py-2.5 text-sm font-medium transition-all ${
                       newSelectedTime === slot.time
@@ -619,7 +698,8 @@ export function AppointmentsPage() {
                 !newStaffId.trim() ||
                 !newSelectedTime.trim() ||
                 !newServiceId ||
-                activeStaff.length === 0
+                activeStaff.length === 0 ||
+                (newStaffId === STAFF_ALL && !pendingStaffIdForSlot.trim())
               }
               className="w-full rounded-xl bg-[var(--color-accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-accent-muted)] disabled:opacity-40"
             >
@@ -756,6 +836,53 @@ export function AppointmentsPage() {
           )}
         </div>
       </div>
+
+      {staffPickerTime ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="staff-picker-title"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setStaffPickerTime(null)
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/[0.1] bg-[var(--color-surface-elevated)] p-5 shadow-[var(--shadow-glow)]"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 id="staff-picker-title" className="text-base font-semibold text-white">
+              {t('appointments.pickStaffForSlot')} {staffPickerTime}
+            </h3>
+            <ul className="mt-4 max-h-[min(50vh,20rem)] space-y-2 overflow-y-auto">
+              {activeStaff
+                .filter((s) => !staffBookedStarts.get(s.id)?.has(staffPickerTime))
+                .map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm font-medium text-white transition hover:border-[var(--color-accent)]/50"
+                      onClick={() => {
+                        setPendingStaffIdForSlot(s.id)
+                        setNewSelectedTime(staffPickerTime)
+                        setStaffPickerTime(null)
+                      }}
+                    >
+                      {s.full_name}
+                    </button>
+                  </li>
+                ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => setStaffPickerTime(null)}
+              className="mt-4 w-full rounded-xl border border-white/10 py-2.5 text-sm text-zinc-400 transition hover:border-white/20 hover:text-white"
+            >
+              {t('appointments.cancel')}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {editing && (
         <AppointmentEditModal

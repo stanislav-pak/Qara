@@ -34,6 +34,8 @@ export const ru = {
   'appointments.fieldPhone': 'Телефон',
   'appointments.fieldStaff': 'Мастер',
   'appointments.selectStaff': 'Выберите мастера',
+  'appointments.allStaff': 'Все мастера',
+  'appointments.pickStaffForSlot': 'Кто свободен в',
   'appointments.noActiveStaff': 'Нет активных сотрудников — добавьте их в разделе «Команда».',
   'appointments.fieldClientOptional': 'необязательно',
   'appointments.fieldDateTime': 'Дата и время',
