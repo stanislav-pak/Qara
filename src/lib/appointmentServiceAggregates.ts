@@ -8,8 +8,8 @@ export type AppointmentServiceLine = {
 }
 
 /**
- * Суммы по записи: цена — сумма price; длительность — для строк с service_id берётся
- * duration из каталога services, иначе — поле duration строки.
+ * Суммы по записи: цена — сумма price; длительность — в первую очередь снимок
+ * `duration` из строки `appointment_services`, иначе — из каталога `services` по service_id.
  */
 export function aggregateAppointmentServicesByAppointment(
   rows: AppointmentServiceLine[],
@@ -21,11 +21,12 @@ export function aggregateAppointmentServicesByAppointment(
     if (!aid) continue
     const amt = Number(row.price ?? 0)
     const sid = row.service_id
+    const lineDur = Math.max(0, Math.round(Number(row.duration ?? 0)))
     let durMin = 0
-    if (sid && serviceDurationById.has(sid)) {
+    if (lineDur > 0) {
+      durMin = lineDur
+    } else if (sid && serviceDurationById.has(sid)) {
       durMin = Math.max(0, Math.round(Number(serviceDurationById.get(sid) ?? 0)))
-    } else {
-      durMin = Math.max(0, Math.round(Number(row.duration ?? 0)))
     }
     const prev = out.get(aid) ?? { amountKzt: 0, durationMinutes: 0 }
     prev.amountKzt += amt

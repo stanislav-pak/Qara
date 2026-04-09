@@ -26,7 +26,7 @@ export function readAppointmentStaffId(row: Record<string, unknown>): string | n
   return typeof v === 'string' ? v : null
 }
 
-/** Суммарные duration_minutes по записи (appointment_services + services.duration по service_id). */
+/** Суммарные минуты по записи из строк `appointment_services` (см. aggregateAppointmentServicesByAppointment). */
 export async function fetchDurationMinutesByAppointmentIds(
   supabase: SupabaseClient,
   ownerId: string,
@@ -182,21 +182,19 @@ export async function loadDayCreationTimeSlots(
   const slotStep = args.slotStepMinutes ?? 30
   const { start: dayStartIso, end: dayEndIso } = localDayBoundsFor(args.selectedDate)
 
-  let q = supabase
-    .from('appointments')
-    .select(`id, starts_at, ${APPOINTMENT_STAFF_FK}`)
-    .eq('owner_id', args.ownerId)
-    .gte('starts_at', dayStartIso)
-    .lte('starts_at', dayEndIso)
-    .not('status', 'in', '(cancelled,no_show)')
+  const base = () =>
+    supabase
+      .from('appointments')
+      .select(`id, starts_at, ${APPOINTMENT_STAFF_FK}`)
+      .eq('owner_id', args.ownerId)
+      .gte('starts_at', dayStartIso)
+      .lte('starts_at', dayEndIso)
+      .not('status', 'in', '(cancelled,no_show)')
 
-  if (args.staffMode.kind === 'single') {
-    q = q.eq(APPOINTMENT_STAFF_FK, args.staffMode.staffMemberId)
-  } else {
-    q = q.in(APPOINTMENT_STAFF_FK, args.staffMode.staffMemberIds)
-  }
-
-  const { data, error } = await q
+  const { data, error } =
+    args.staffMode.kind === 'single'
+      ? await base().eq(APPOINTMENT_STAFF_FK, args.staffMode.staffMemberId)
+      : await base().in(APPOINTMENT_STAFF_FK, args.staffMode.staffMemberIds)
 
   if (error) {
     console.warn('[occupiedSlots] appointments', error)
@@ -204,8 +202,24 @@ export async function loadDayCreationTimeSlots(
   }
 
   const rawRows = (data ?? []) as Record<string, unknown>[]
+  console.log('[occupiedSlots] Supabase appointments for day', {
+    dayStartIso,
+    dayEndIso,
+    staffMode: args.staffMode,
+    /** В БД колонка `staff_id`, не `staff_member_id`. */
+    filter: { column: APPOINTMENT_STAFF_FK, op: args.staffMode.kind === 'single' ? 'eq' : 'in' },
+    rowCount: rawRows.length,
+    rows: rawRows.map((r) => ({
+      id: r.id,
+      starts_at: r.starts_at,
+      [APPOINTMENT_STAFF_FK]: r[APPOINTMENT_STAFF_FK],
+    })),
+  })
   const ids = rawRows.map((r) => (typeof r.id === 'string' ? r.id : '')).filter(Boolean)
   const durationByAppt = await fetchDurationMinutesByAppointmentIds(supabase, args.ownerId, ids)
+  console.log('[occupiedSlots] durationMinutes by appointment_id (from appointment_services aggregate)', {
+    ...Object.fromEntries(durationByAppt),
+  })
 
   if (args.staffMode.kind === 'single') {
     const sid = args.staffMode.staffMemberId
