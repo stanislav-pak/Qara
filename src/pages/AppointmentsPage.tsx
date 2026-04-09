@@ -92,7 +92,7 @@ type EditModalProps = {
   working: boolean
   onClose: () => void
   onSave: (patch: {
-    staff_id: string
+    staff_member_id: string
     title: string
     client_name: string | null
     scheduled_at: string
@@ -102,11 +102,11 @@ type EditModalProps = {
 
 function AppointmentEditModal({ row, staffOptions, t, working, onClose, onSave }: EditModalProps) {
   const staffSelectOptions =
-    row.staff_id && !staffOptions.some((s) => s.id === row.staff_id)
-      ? [{ id: row.staff_id, full_name: row.staff_name?.trim() || '—' }, ...staffOptions]
+    row.staff_member_id && !staffOptions.some((s) => s.id === row.staff_member_id)
+      ? [{ id: row.staff_member_id, full_name: row.staff_name?.trim() || '—' }, ...staffOptions]
       : staffOptions
 
-  const [staffId, setStaffId] = useState(row.staff_id ?? '')
+  const [staffId, setStaffId] = useState(row.staff_member_id ?? '')
   const [title, setTitle] = useState(row.title)
   const [client, setClient] = useState(row.client_name ?? '')
   const [when, setWhen] = useState(() => isoToDatetimeLocalValue(row.scheduled_at))
@@ -126,7 +126,7 @@ function AppointmentEditModal({ row, staffOptions, t, working, onClose, onSave }
     e.preventDefault()
     if (!staffId.trim()) return
     await onSave({
-      staff_id: staffId.trim(),
+      staff_member_id: staffId.trim(),
       title: title.trim() || 'Приём',
       client_name: client.trim() || null,
       scheduled_at: datetimeLocalValueToIso(when),
@@ -375,7 +375,7 @@ export function AppointmentsPage() {
         : serviceList.find((s) => s.id === newServiceId)?.name.trim() || newTitleOther.trim() || 'Приём'
     const phoneE164 = digitsToE164Plus7(newPhoneDigits)
     const { error } = await createAppointment({
-      staff_id: newStaffId,
+      staff_member_id: newStaffId,
       title: titleResolved,
       client_name: newClient.trim() || null,
       phone: phoneE164,

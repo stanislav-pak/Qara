@@ -161,7 +161,7 @@ export function BookingPage() {
         .insert({
           owner_id: ownerId,
           client_id: clientId,
-          staff_id: selectedStaff.id,
+          staff_member_id: selectedStaff.id,
           title: selectedService.name,
           client_name: clientName.trim(),
           scheduled_at: startsIso,

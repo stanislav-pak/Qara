@@ -156,7 +156,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
           .eq('is_active', true),
         supabase
           .from('appointments')
-          .select('id, title, client_name, scheduled_at, status, staff_id')
+          .select('id, title, client_name, scheduled_at, status, staff_member_id')
           .eq('owner_id', userId)
           .gte('scheduled_at', nowUtc)
           .neq('status', 'cancelled')
@@ -230,7 +230,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         client_name: string | null
         scheduled_at: string
         status: string
-        staff_id: string | null
+        staff_member_id: string | null
       }[]
 
       let upcoming: UpcomingAppointment[] = baseUpcoming.map((r) => ({
@@ -247,7 +247,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
       if (baseUpcoming.length > 0) {
         const apptIds = baseUpcoming.map((r) => r.id)
         const staffIds = [
-          ...new Set(baseUpcoming.map((r) => r.staff_id).filter((id): id is string => Boolean(id))),
+          ...new Set(baseUpcoming.map((r) => r.staff_member_id).filter((id): id is string => Boolean(id))),
         ]
 
         const staffQuery =
@@ -300,7 +300,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
             client_name: r.client_name,
             scheduled_at: r.scheduled_at,
             status: r.status,
-            staff_name: r.staff_id ? staffMap.get(r.staff_id) ?? null : null,
+            staff_name: r.staff_member_id ? staffMap.get(r.staff_member_id) ?? null : null,
             amount_kzt: agg?.amountKzt ?? 0,
             duration_minutes: agg?.durationMinutes ?? 0,
           }
