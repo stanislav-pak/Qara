@@ -7,7 +7,6 @@ import type {
 } from '@/hooks/useAppointments'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useTranslation } from '@/hooks/useTranslation'
-import { aggregateAppointmentServicesByAppointment } from '@/lib/appointmentServiceAggregates'
 import {
   datetimeLocalValueToIso,
   formatAppointmentSlot,
@@ -15,17 +14,16 @@ import {
   formatKztDurationLine,
   isoToDatetimeLocalValue,
   localeTagFromAppLocale,
-  localDayBoundsFor,
 } from '@/lib/format'
 import { digitsToE164Plus7 } from '@/lib/kzPhone'
-import { supabase } from '@/lib/supabase'
 import {
-  buildBookedIntervalsByStaff,
-  generateAggregateTimeSlotsOverlap,
-  generateTimeSlots,
-  isSlotBlockedByBookings,
+  isProposedSlotOverlapping,
+  loadDayCreationTimeSlots,
+  slotRangeMsOnLocalDay,
+  type OccupiedInterval,
   type TimeSlot as DayTimeSlot,
-} from '@/lib/timeSlots'
+} from '@/lib/occupiedSlots'
+import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
 import type { TranslationKey } from '@/locales/ru'
 
@@ -262,9 +260,9 @@ export function AppointmentsPage() {
   const [newPhoneDigits, setNewPhoneDigits] = useState('')
   const [newDurationMin, setNewDurationMin] = useState<number>(60)
   const [newSelectedTime, setNewSelectedTime] = useState('')
-  const [staffBookedIntervals, setStaffBookedIntervals] = useState<
-    Map<string, { starts_at: string; ends_at: string }[]>
-  >(() => new Map())
+  const [staffBookedIntervals, setStaffBookedIntervals] = useState<Map<string, OccupiedInterval[]>>(
+    () => new Map(),
+  )
   const [staffPickerTime, setStaffPickerTime] = useState<string | null>(null)
   const [createSlots, setCreateSlots] = useState<DayTimeSlot[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
@@ -320,138 +318,29 @@ export function AppointmentsPage() {
     }
 
     const ownerId = userId
-    const { start: dayStartIso, end: dayEndIso } = localDayBoundsFor(selectedDate)
     const staffIds = activeStaff.map((s) => s.id)
     let cancelled = false
     setSlotsLoading(true)
 
     ;(async () => {
-      async function durationMinutesByAppointment(appointmentIds: string[]): Promise<Map<string, number>> {
-        const out = new Map<string, number>()
-        if (appointmentIds.length === 0) return out
-        const { data: svcRows, error: svcErr } = await supabase
-          .from('appointment_services')
-          .select('appointment_id, price, duration, service_id')
-          .in('appointment_id', appointmentIds)
-        if (svcErr) {
-          console.warn('[appointments] slot appointment_services', svcErr)
-          return out
-        }
-        const lines =
-          (svcRows ?? []) as {
-            appointment_id: string
-            price: number | null
-            duration: number | null
-            service_id: string | null
-          }[]
-        const serviceIds = [
-          ...new Set(lines.map((r) => r.service_id).filter((id): id is string => Boolean(id))),
-        ]
-        let serviceDurationById = new Map<string, number>()
-        if (serviceIds.length > 0) {
-          const { data: catRows, error: catErr } = await supabase
-            .from('services')
-            .select('id, duration')
-            .eq('owner_id', ownerId)
-            .in('id', serviceIds)
-          if (catErr) console.warn('[appointments] slot services', catErr)
-          serviceDurationById = new Map((catRows ?? []).map((s) => [s.id, Number(s.duration ?? 0)]))
-        }
-        const agg = aggregateAppointmentServicesByAppointment(lines, serviceDurationById)
-        for (const [aid, v] of agg) {
-          out.set(aid, v.durationMinutes)
-        }
-        return out
-      }
+      const staffMode =
+        newStaffId === STAFF_ALL
+          ? ({ kind: 'all' as const, staffMemberIds: staffIds })
+          : ({ kind: 'single' as const, staffMemberId: newStaffId.trim() })
 
-      if (newStaffId === STAFF_ALL) {
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('id, staff_id, starts_at, ends_at')
-          .eq('owner_id', ownerId)
-          .in('staff_id', staffIds)
-          .gte('starts_at', dayStartIso)
-          .lte('starts_at', dayEndIso)
-          .not('status', 'in', '(cancelled,no_show)')
-        if (cancelled) return
-        if (error) {
-          console.warn('[appointments] create slots (all staff)', error)
-          setCreateSlots([])
-          setStaffBookedIntervals(new Map())
-          setSlotsLoading(false)
-          return
-        }
-        const apptRows = (
-          (data ?? []) as {
-            id: string
-            staff_id: string | null
-            starts_at: string | null
-            ends_at: string | null
-          }[]
-        ).filter(
-          (r) =>
-            r.staff_id != null &&
-            staffIds.includes(r.staff_id),
-        )
-        const durMap = await durationMinutesByAppointment(apptRows.map((r) => r.id))
-        const bookedMap = buildBookedIntervalsByStaff(apptRows, staffIds, {
-          durationMinutesByAppointmentId: durMap,
-        })
-        setStaffBookedIntervals(bookedMap)
-        setCreateSlots(
-          generateAggregateTimeSlotsOverlap(
-            9,
-            21,
-            newDurationMin,
-            staffIds,
-            bookedMap,
-            selectedDate,
-          ),
-        )
-        setSlotsLoading(false)
-        return
-      }
-
-      const selectedStaffId = newStaffId.trim()
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('id, staff_id, starts_at, ends_at')
-        .eq('owner_id', ownerId)
-        .eq('staff_id', selectedStaffId)
-        .gte('starts_at', dayStartIso)
-        .lte('starts_at', dayEndIso)
-        .not('status', 'in', '(cancelled,no_show)')
-      if (cancelled) return
-      if (error) {
-        console.warn('[appointments] create slots', error)
-        setCreateSlots([])
-        setStaffBookedIntervals(new Map())
-        setSlotsLoading(false)
-        return
-      }
-      setStaffBookedIntervals(new Map())
-      const rows = (
-        (data ?? []) as {
-          id: string
-          staff_id: string | null
-          starts_at: string | null
-          ends_at: string | null
-        }[]
-      ).filter((r) => r.staff_id === selectedStaffId)
-      const durMap = await durationMinutesByAppointment(rows.map((r) => r.id))
-      const withStaff = rows.map((r) => ({
-        id: r.id,
-        staff_id: r.staff_id as string,
-        starts_at: r.starts_at,
-        ends_at: r.ends_at,
-      }))
-      const bookedMap = buildBookedIntervalsByStaff(withStaff, [selectedStaffId], {
-        durationMinutesByAppointmentId: durMap,
+      const { slots, occupiedIntervalsByStaffId } = await loadDayCreationTimeSlots(supabase, {
+        ownerId,
+        selectedDate,
+        newBookingDurationMinutes: newDurationMin,
+        staffMode,
+        startHour: 9,
+        endHour: 21,
+        slotStepMinutes: 30,
       })
-      const booked = bookedMap.get(selectedStaffId) ?? []
-      setCreateSlots(
-        generateTimeSlots(9, 21, newDurationMin, booked, 'intervalOverlap', selectedDate),
-      )
+
+      if (cancelled) return
+      setStaffBookedIntervals(occupiedIntervalsByStaffId)
+      setCreateSlots(slots)
       setSlotsLoading(false)
     })()
     return () => {
@@ -746,16 +635,15 @@ export function AppointmentsPage() {
                       if (!slot.available) return
                       if (newStaffId === STAFF_ALL) {
                         const sm = slotTimeToMinutes(slot.time)
-                        const slotEnd = sm + newDurationMin
-                        const free = activeStaff.filter(
-                          (s) =>
-                            !isSlotBlockedByBookings(
-                              sm,
-                              slotEnd,
-                              staffBookedIntervals.get(s.id) ?? [],
-                              selectedDate,
-                            ),
+                        const { slotStartMs, slotEndMs } = slotRangeMsOnLocalDay(
+                          sm,
+                          newDurationMin,
+                          selectedDate,
                         )
+                        const free = activeStaff.filter((s) => {
+                          const occ = staffBookedIntervals.get(s.id) ?? []
+                          return !isProposedSlotOverlapping(slotStartMs, slotEndMs, occ)
+                        })
                         if (free.length === 0) return
                         setStaffPickerTime(slot.time)
                         return
@@ -948,12 +836,13 @@ export function AppointmentsPage() {
               {activeStaff
                 .filter((s) => {
                   const sm = slotTimeToMinutes(staffPickerTime)
-                  return !isSlotBlockedByBookings(
+                  const { slotStartMs, slotEndMs } = slotRangeMsOnLocalDay(
                     sm,
-                    sm + newDurationMin,
-                    staffBookedIntervals.get(s.id) ?? [],
+                    newDurationMin,
                     selectedDate,
                   )
+                  const occ = staffBookedIntervals.get(s.id) ?? []
+                  return !isProposedSlotOverlapping(slotStartMs, slotEndMs, occ)
                 })
                 .map((s) => (
                   <li key={s.id}>

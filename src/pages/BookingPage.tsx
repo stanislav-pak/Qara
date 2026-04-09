@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { digitsToE164Plus7 } from '@/lib/kzPhone'
-import { generateTimeSlots, type TimeSlot } from '@/lib/timeSlots'
+import { loadOnlineBookingTimeSlots, type TimeSlot } from '@/lib/occupiedSlots'
 
 /** Same UUID as in Supabase RLS policies for anon booking (see supabase/public_booking_rls.sql). */
 function bookingOwnerId(): string | undefined {
@@ -100,40 +100,12 @@ export function BookingPage() {
         return
       }
       setLoading(true)
-      const staffId = selectedStaff!.id
-      const { data } = await supabase
-        .from('appointments')
-        .select('staff_id, starts_at, ends_at')
-        .eq('owner_id', ownerId)
-        .eq('staff_id', staffId)
-        .gte('starts_at', `${selectedDate}T00:00:00`)
-        .lte('starts_at', `${selectedDate}T23:59:59`)
-        .not('status', 'in', '(cancelled,no_show)')
-      const booked = (data || [])
-        .filter(
-          (r): r is { staff_id: string; starts_at: string; ends_at: string | null } =>
-            r.starts_at != null && r.staff_id === staffId,
-        )
-        .map((r) => {
-          const starts = r.starts_at
-          const startMs = new Date(starts).getTime()
-          const endMsRaw = r.ends_at ? new Date(r.ends_at).getTime() : NaN
-          const ends =
-            Number.isFinite(endMsRaw) && endMsRaw > startMs
-              ? r.ends_at!
-              : new Date(startMs + 60 * 60 * 1000).toISOString()
-          return { starts_at: starts, ends_at: ends }
-        })
-      const [y, mo, d] = selectedDate.split('-').map(Number)
-      const referenceDay = new Date(y, mo - 1, d)
-      const slots = generateTimeSlots(
-        9,
-        21,
-        selectedService!.duration,
-        booked,
-        'intervalOverlap',
-        referenceDay,
-      )
+      const slots = await loadOnlineBookingTimeSlots(supabase, {
+        ownerId,
+        staffMemberId: selectedStaff!.id,
+        selectedDateYmd: selectedDate,
+        newBookingDurationMinutes: selectedService!.duration,
+      })
       setTimeSlots(slots)
       setLoading(false)
     }
