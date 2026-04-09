@@ -259,7 +259,6 @@ export function AppointmentsPage() {
   const [newPhoneDigits, setNewPhoneDigits] = useState('')
   const [newDurationMin, setNewDurationMin] = useState<number>(60)
   const [newSelectedTime, setNewSelectedTime] = useState('')
-  const [pendingStaffIdForSlot, setPendingStaffIdForSlot] = useState('')
   const [staffBookedIntervals, setStaffBookedIntervals] = useState<
     Map<string, { starts_at: string; ends_at: string }[]>
   >(() => new Map())
@@ -299,10 +298,9 @@ export function AppointmentsPage() {
 
   useEffect(() => {
     setNewSelectedTime('')
-    setPendingStaffIdForSlot('')
     setStaffPickerTime(null)
     setFormError(false)
-  }, [selectedDate, newStaffId, newDurationMin])
+  }, [selectedDate, newDurationMin])
 
   useEffect(() => {
     if (!userId || activeStaff.length === 0) {
@@ -400,8 +398,7 @@ export function AppointmentsPage() {
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newSelectedTime.trim() || !newServiceId) return
-    const staffIdResolved = newStaffId === STAFF_ALL ? pendingStaffIdForSlot : newStaffId
-    if (!staffIdResolved.trim()) return
+    if (newStaffId === STAFF_ALL || !newStaffId.trim()) return
     setFormError(false)
     setWorking(true)
     const dayStr = formatDateInputLocal(selectedDate)
@@ -412,7 +409,7 @@ export function AppointmentsPage() {
         : serviceList.find((s) => s.id === newServiceId)?.name.trim() || newTitleOther.trim() || 'Приём'
     const phoneE164 = digitsToE164Plus7(newPhoneDigits)
     const { error } = await createAppointment({
-      staff_id: staffIdResolved,
+      staff_id: newStaffId,
       title: titleResolved,
       client_name: newClient.trim() || null,
       phone: phoneE164,
@@ -429,7 +426,6 @@ export function AppointmentsPage() {
     setNewClient('')
     setNewPhoneDigits('')
     setNewSelectedTime('')
-    setPendingStaffIdForSlot('')
   }
 
   const onSaveEdit = async (patch: Parameters<EditModalProps['onSave']>[0]) => {
@@ -545,7 +541,11 @@ export function AppointmentsPage() {
             <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldStaff')}</span>
             <select
               value={newStaffId}
-              onChange={(e) => setNewStaffId(e.target.value)}
+              onChange={(e) => {
+                setNewStaffId(e.target.value)
+                setNewSelectedTime('')
+                setStaffPickerTime(null)
+              }}
               required
               disabled={loading || activeStaff.length === 0}
               className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
@@ -675,23 +675,17 @@ export function AppointmentsPage() {
                             !isSlotBlockedByBookings(sm, slotEnd, staffBookedIntervals.get(s.id) ?? []),
                         )
                         if (free.length === 0) return
-                        if (free.length === 1) {
-                          setPendingStaffIdForSlot(free[0].id)
-                          setNewSelectedTime(slot.time)
-                          return
-                        }
                         setStaffPickerTime(slot.time)
                         return
                       }
-                      setPendingStaffIdForSlot('')
                       setNewSelectedTime(slot.time)
                     }}
                     className={`rounded-xl py-2.5 text-sm font-medium transition-all ${
                       newSelectedTime === slot.time
                         ? 'border border-[var(--color-accent)]/60 bg-[var(--color-accent)]/20 text-white'
                         : !slot.available
-                          ? 'cursor-not-allowed bg-white/[0.02] text-zinc-700'
-                          : 'border border-white/10 bg-white/[0.03] text-zinc-300 hover:border-[var(--color-accent)]/50 hover:text-white'
+                          ? 'cursor-not-allowed bg-black/40 text-zinc-600 opacity-50'
+                          : 'border border-white/15 bg-white/[0.08] text-white hover:border-[var(--color-accent)]/50 hover:bg-white/[0.12]'
                     }`}
                   >
                     {slot.time}
@@ -707,10 +701,10 @@ export function AppointmentsPage() {
                 working ||
                 loading ||
                 !newStaffId.trim() ||
+                newStaffId === STAFF_ALL ||
                 !newSelectedTime.trim() ||
                 !newServiceId ||
-                activeStaff.length === 0 ||
-                (newStaffId === STAFF_ALL && !pendingStaffIdForSlot.trim())
+                activeStaff.length === 0
               }
               className="w-full rounded-xl bg-[var(--color-accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-accent-muted)] disabled:opacity-40"
             >
@@ -881,8 +875,10 @@ export function AppointmentsPage() {
                       type="button"
                       className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm font-medium text-white transition hover:border-[var(--color-accent)]/50"
                       onClick={() => {
-                        setPendingStaffIdForSlot(s.id)
-                        setNewSelectedTime(staffPickerTime)
+                        const t = staffPickerTime
+                        if (!t) return
+                        setNewStaffId(s.id)
+                        setNewSelectedTime(t)
                         setStaffPickerTime(null)
                       }}
                     >
