@@ -6,13 +6,28 @@ export type TimeSlot = {
 
 /**
  * `intervalOverlap` — слот занят, если интервал [slot, slot+duration) пересекается с [starts_at, ends_at] (онлайн-бронь).
- * `exactStart` — слот занят только если локальное время starts_at существующей записи совпадает с началом слота (календарь админки).
+ * `exactStart` — слот занят только если локальное время starts_at существующей записи совпадает с началом слота.
  */
 export type TimeSlotConflictMode = 'intervalOverlap' | 'exactStart'
 
+/** Пересечение интервалов в минутах от полуночи (локальное время), как в BookingPage. */
+export function isSlotBlockedByBookings(
+  slotStartMin: number,
+  slotEndMin: number,
+  booked: { starts_at: string; ends_at: string }[],
+): boolean {
+  return booked.some((bookedRow) => {
+    const bStart = new Date(bookedRow.starts_at)
+    const bEnd = new Date(bookedRow.ends_at)
+    const bStartMin = bStart.getHours() * 60 + bStart.getMinutes()
+    const bEndMin = bEnd.getHours() * 60 + bEnd.getMinutes()
+    return slotStartMin < bEndMin && slotEndMin > bStartMin
+  })
+}
+
 /**
  * Генерирует слоты с startHour по endHour, шаг 30 мин.
- * duration — длительность новой записи в минутах; при intervalOverlap — проверка пересечений.
+ * duration — длительность новой записи в минутах; при intervalOverlap — проверка пересечений с записями.
  */
 export function generateTimeSlots(
   startHour: number,
@@ -36,13 +51,7 @@ export function generateTimeSlots(
           return sd.getHours() === h && sd.getMinutes() === m
         })
       } else {
-        isBooked = bookedSlots.some((booked) => {
-          const bStart = new Date(booked.starts_at)
-          const bEnd = new Date(booked.ends_at)
-          const bStartMin = bStart.getHours() * 60 + bStart.getMinutes()
-          const bEndMin = bEnd.getHours() * 60 + bEnd.getMinutes()
-          return slotStart < bEndMin && slotEnd > bStartMin
-        })
+        isBooked = isSlotBlockedByBookings(slotStart, slotEnd, bookedSlots)
       }
       slots.push({ time: timeStr, available: !isBooked })
     }
@@ -50,13 +59,13 @@ export function generateTimeSlots(
   return slots
 }
 
-/** По каждому мастеру занятость = точное совпадение HH:MM со starts_at; слот доступен, если хотя бы у одного мастера время свободно. */
-export function generateAggregateTimeSlotsExactStart(
+/** Режим «все мастера»: слот доступен, если хотя бы у одного мастера нет пересечения с его записями (длительность новой записи учитывается). */
+export function generateAggregateTimeSlotsOverlap(
   startHour: number,
   endHour: number,
   duration: number,
   staffIds: string[],
-  bookedStartTimeByStaffId: Map<string, Set<string>>,
+  bookedByStaff: Map<string, { starts_at: string; ends_at: string }[]>,
 ): TimeSlot[] {
   const slots: TimeSlot[] = []
   if (staffIds.length === 0) return []
@@ -66,28 +75,33 @@ export function generateAggregateTimeSlotsExactStart(
       const slotStart = h * 60 + m
       const slotEnd = slotStart + duration
       if (slotEnd > endHour * 60) break
-      const anyFree = staffIds.some((id) => !bookedStartTimeByStaffId.get(id)?.has(timeStr))
+      const anyFree = staffIds.some((id) => {
+        const list = bookedByStaff.get(id) ?? []
+        return !isSlotBlockedByBookings(slotStart, slotEnd, list)
+      })
       slots.push({ time: timeStr, available: anyFree })
     }
   }
   return slots
 }
 
-/** Локальные времена начала записей (HH:MM) по staff_id для exactStart. */
-export function buildBookedStartTimesByStaff(
-  rows: { staff_id: string | null; starts_at: string | null }[],
+/** Интервалы записей по staff_id (ends_at подставляется, если в БД пусто). */
+export function buildBookedIntervalsByStaff(
+  rows: { staff_id: string | null; starts_at: string | null; ends_at: string | null }[],
   staffIds: string[],
-): Map<string, Set<string>> {
-  const map = new Map<string, Set<string>>()
+): Map<string, { starts_at: string; ends_at: string }[]> {
+  const map = new Map<string, { starts_at: string; ends_at: string }[]>()
   for (const id of staffIds) {
-    map.set(id, new Set())
+    map.set(id, [])
   }
   for (const row of rows) {
     if (!row.staff_id || !row.starts_at) continue
     if (!map.has(row.staff_id)) continue
-    const d = new Date(row.starts_at)
-    const key = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-    map.get(row.staff_id)!.add(key)
+    const starts = row.starts_at
+    const ends =
+      row.ends_at ??
+      new Date(new Date(starts).getTime() + 60 * 60 * 1000).toISOString()
+    map.get(row.staff_id)!.push({ starts_at: starts, ends_at: ends })
   }
   return map
 }
