@@ -52,6 +52,19 @@ export function formatKztSpaced(amount: number, localeTag: string): string {
   return `${formatted.replace(/\u00a0/g, ' ')} ₸`
 }
 
+/** «2 000 ₸ · 30 мин» — цена и суммарная длительность услуг записи. */
+export function formatKztDurationLine(
+  amountKzt: number,
+  durationMinutes: number,
+  localeTag: string,
+  emptyDash = '—',
+): string {
+  const pricePart = amountKzt > 0 ? formatKztSpaced(amountKzt, localeTag) : emptyDash
+  const durPart = durationMinutes > 0 ? `${durationMinutes} мин` : null
+  if (durPart) return `${pricePart} · ${durPart}`
+  return pricePart
+}
+
 export function formatLocaleDateLong(date: Date, localeTag: string): string {
   return new Intl.DateTimeFormat(localeTag, {
     weekday: 'long',

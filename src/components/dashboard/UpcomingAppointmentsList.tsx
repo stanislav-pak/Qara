@@ -1,5 +1,5 @@
 import type { UpcomingAppointment } from '@/hooks/useOwnerDashboard'
-import { formatAppointmentSlot, formatKztSpaced, localeTagFromAppLocale } from '@/lib/format'
+import { formatAppointmentSlot, formatKztDurationLine, localeTagFromAppLocale } from '@/lib/format'
 import type { TranslationKey } from '@/locales/ru'
 import type { Locale } from '@/store/localeStore'
 
@@ -73,8 +73,7 @@ export function UpcomingAppointmentsList({ items, loading, locale, t }: Props) {
           <ul className="divide-y divide-white/[0.05]">
             {items.map((row) => {
               const { date, time } = formatAppointmentSlot(row.scheduled_at, tag)
-              const priceStr =
-                row.amount_kzt > 0 ? formatKztSpaced(row.amount_kzt, tag) : dash
+              const priceStr = formatKztDurationLine(row.amount_kzt, row.duration_minutes, tag, dash)
 
               return (
                 <li key={row.id}>

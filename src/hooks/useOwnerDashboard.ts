@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { aggregateAppointmentServicesByAppointment } from '@/lib/appointmentServiceAggregates'
 import { formatDateInputLocal, localDayBoundsIso } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
@@ -19,6 +20,8 @@ export type UpcomingAppointment = {
   staff_name: string | null
   /** Сумма цен услуг записи (appointment_services.price). */
   amount_kzt: number
+  /** Сумма длительностей: services.duration по service_id, иначе duration в строке. */
+  duration_minutes: number
 }
 
 export type OwnerDashboardState = {
@@ -238,6 +241,7 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
         status: r.status,
         staff_name: null,
         amount_kzt: 0,
+        duration_minutes: 0,
       }))
 
       if (baseUpcoming.length > 0) {
@@ -257,28 +261,50 @@ export function useOwnerDashboard(): OwnerDashboardState & { refresh: () => void
 
         const [staffPick, svcPick] = await Promise.all([
           staffQuery,
-          supabase.from('appointment_services').select('appointment_id, price').in('appointment_id', apptIds),
+          supabase
+            .from('appointment_services')
+            .select('appointment_id, price, duration, service_id')
+            .in('appointment_id', apptIds),
         ])
 
         if (staffPick.error) console.warn('[dashboard] staff names', staffPick.error)
         if (svcPick.error) console.warn('[dashboard] appointment_services', svcPick.error)
 
         const staffMap = new Map((staffPick.data ?? []).map((s) => [s.id, s.full_name]))
-        const amountByAppt = new Map<string, number>()
-        for (const row of svcPick.data ?? []) {
-          const aid = row.appointment_id
-          amountByAppt.set(aid, (amountByAppt.get(aid) ?? 0) + Number(row.price ?? 0))
+
+        const svcLines = (svcPick.data ?? []) as {
+          appointment_id: string
+          price: number | null
+          duration: number | null
+          service_id: string | null
+        }[]
+        const serviceIds = [...new Set(svcLines.map((r) => r.service_id).filter((id): id is string => Boolean(id)))]
+        let serviceDurationById = new Map<string, number>()
+        if (serviceIds.length > 0) {
+          const { data: catRows, error: catErr } = await supabase
+            .from('services')
+            .select('id, duration')
+            .eq('owner_id', userId)
+            .in('id', serviceIds)
+          if (catErr) console.warn('[dashboard] services durations', catErr)
+          serviceDurationById = new Map((catRows ?? []).map((s) => [s.id, Number(s.duration ?? 0)]))
         }
 
-        upcoming = baseUpcoming.map((r) => ({
-          id: r.id,
-          title: r.title,
-          client_name: r.client_name,
-          scheduled_at: r.scheduled_at,
-          status: r.status,
-          staff_name: r.staff_id ? staffMap.get(r.staff_id) ?? null : null,
-          amount_kzt: amountByAppt.get(r.id) ?? 0,
-        }))
+        const aggByAppt = aggregateAppointmentServicesByAppointment(svcLines, serviceDurationById)
+
+        upcoming = baseUpcoming.map((r) => {
+          const agg = aggByAppt.get(r.id)
+          return {
+            id: r.id,
+            title: r.title,
+            client_name: r.client_name,
+            scheduled_at: r.scheduled_at,
+            status: r.status,
+            staff_name: r.staff_id ? staffMap.get(r.staff_id) ?? null : null,
+            amount_kzt: agg?.amountKzt ?? 0,
+            duration_minutes: agg?.durationMinutes ?? 0,
+          }
+        })
       }
 
       const weekIds = (weekApptRes.data ?? []).map((r) => r.id)

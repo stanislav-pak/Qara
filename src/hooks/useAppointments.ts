@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { aggregateAppointmentServicesByAppointment } from '@/lib/appointmentServiceAggregates'
 import { localDayBoundsFor } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/authStore'
@@ -8,6 +9,10 @@ export type AppointmentRow = Database['public']['Tables']['appointments']['Row']
 
 export type AppointmentDayRow = AppointmentRow & {
   staff_name: string | null
+  /** Сумма appointment_services.price по записи. */
+  amount_kzt: number
+  /** Сумма длительностей: services.duration по service_id, иначе duration в строке. */
+  duration_minutes: number
 }
 
 export type ActiveStaffOption = { id: string; full_name: string }
@@ -63,11 +68,51 @@ export function useAppointments() {
       setLoadError(true)
     } else {
       const rows = (apptRes.data ?? []) as AppointmentRow[]
+      const apptIds = rows.map((a) => a.id)
+      let aggByAppt = new Map<string, { amountKzt: number; durationMinutes: number }>()
+
+      if (apptIds.length > 0) {
+        const { data: svcRows, error: svcErr } = await supabase
+          .from('appointment_services')
+          .select('appointment_id, price, duration, service_id')
+          .in('appointment_id', apptIds)
+        if (svcErr) {
+          console.warn('[appointments] appointment_services', svcErr)
+        } else {
+          const lines =
+            (svcRows ?? []) as {
+              appointment_id: string
+              price: number | null
+              duration: number | null
+              service_id: string | null
+            }[]
+          const serviceIds = [
+            ...new Set(lines.map((r) => r.service_id).filter((id): id is string => Boolean(id))),
+          ]
+          let serviceDurationById = new Map<string, number>()
+          if (serviceIds.length > 0) {
+            const { data: catRows, error: catErr } = await supabase
+              .from('services')
+              .select('id, duration')
+              .eq('owner_id', userId)
+              .in('id', serviceIds)
+            if (catErr) console.warn('[appointments] services durations', catErr)
+            serviceDurationById = new Map((catRows ?? []).map((s) => [s.id, Number(s.duration ?? 0)]))
+          }
+          aggByAppt = aggregateAppointmentServicesByAppointment(lines, serviceDurationById)
+        }
+      }
+
       setAppointments(
-        rows.map((a) => ({
-          ...a,
-          staff_name: a.staff_id ? staffById.get(a.staff_id) ?? null : null,
-        })),
+        rows.map((a) => {
+          const agg = aggByAppt.get(a.id)
+          return {
+            ...a,
+            staff_name: a.staff_id ? staffById.get(a.staff_id) ?? null : null,
+            amount_kzt: agg?.amountKzt ?? 0,
+            duration_minutes: agg?.durationMinutes ?? 0,
+          }
+        }),
       )
       setLoadError(false)
     }

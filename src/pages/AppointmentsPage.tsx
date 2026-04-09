@@ -11,6 +11,7 @@ import {
   datetimeLocalValueToIso,
   formatAppointmentSlot,
   formatDateInputLocal,
+  formatKztDurationLine,
   isoToDatetimeLocalValue,
   localeTagFromAppLocale,
 } from '@/lib/format'
@@ -778,6 +779,9 @@ export function AppointmentsPage() {
                           </span>
                         </p>
                       </div>
+                      <span className="shrink-0 text-right text-sm font-medium tabular-nums text-zinc-300">
+                        {formatKztDurationLine(row.amount_kzt, row.duration_minutes, tag, '—')}
+                      </span>
                       <span
                         className={`shrink-0 self-start rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusBadgeClass(st)}`}
                       >
