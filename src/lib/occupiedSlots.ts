@@ -4,8 +4,9 @@ import { localDayBoundsFor } from '@/lib/format'
 
 /**
  * Имя колонки FK мастера в `public.appointments` (→ staff_members.id).
+ * Должно совпадать с типом в `src/types/database.ts` (`staff_id`).
  */
-export const APPOINTMENT_STAFF_FK = 'staff_member_id' as const
+export const APPOINTMENT_STAFF_FK = 'staff_id' as const
 
 export type OccupiedInterval = { startMs: number; endMs: number }
 
