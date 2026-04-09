@@ -1,4 +1,4 @@
-/** Күннің басы/соңы жергілікті уақыт бойынша (ISO). */
+/** Күннің басы/соңы Алматы уақыты бойынша (ISO +05:00). */
 export function localDayBoundsIso(): { start: string; end: string } {
   return localDayBoundsFor(new Date())
 }
@@ -24,13 +24,15 @@ export function dateInputLocalToIsoMidday(value: string): string {
   return new Date(y, mo - 1, d, 12, 0, 0, 0).toISOString()
 }
 
-/** Белгілі бір күн үшін [00:00 .. 23:59:59.999] жергілікті уақыт. */
-export function localDayBoundsFor(day: Date): { start: string; end: string } {
-  const start = new Date(day)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(day)
-  end.setHours(23, 59, 59, 999)
-  return { start: start.toISOString(), end: end.toISOString() }
+/** Белгілі бір күн үшін [00:00 .. 23:59:59] Алматы уақыты бойынша (UTC+5), ISO offset +05:00. */
+export function localDayBoundsFor(date: Date): { start: string; end: string } {
+  const almatyOffset = 5 * 60 * 60 * 1000
+  const localDate = new Date(date.getTime() + almatyOffset)
+  const ymd = localDate.toISOString().slice(0, 10)
+  return {
+    start: `${ymd}T00:00:00+05:00`,
+    end: `${ymd}T23:59:59+05:00`,
+  }
 }
 
 export function formatKzt(amount: number, localeTag: string): string {
