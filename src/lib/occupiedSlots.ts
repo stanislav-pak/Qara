@@ -161,7 +161,7 @@ function buildGrid(
  * Загрузка записей за выбранный календарный день и построение сетки слотов.
  *
  * — single: тусклый слот, если начало слота попадает в [starts_at, ends_at) записи этого мастера.
- * — all: тусклый, если у каждого из переданных мастеров начало слота попадает в один из его интервалов.
+ * — all: тусклый, если у хотя бы одного из переданных мастеров начало слота попадает в один из его интервалов.
  */
 export async function loadDayCreationTimeSlots(
   supabase: SupabaseClient,
@@ -254,12 +254,11 @@ export async function loadDayCreationTimeSlots(
     slotStep,
     args.newBookingDurationMinutes,
     args.selectedDate,
-    (slotStartMs) => {
-      return staffIds.every((id) => {
+    (slotStartMs) =>
+      staffIds.some((id) => {
         const occ = byStaff.get(id) ?? []
         return isSlotStartInsideOccupied(slotStartMs, occ)
-      })
-    },
+      }),
   )
 
   return { slots, occupiedIntervalsByStaffId: byStaff }
