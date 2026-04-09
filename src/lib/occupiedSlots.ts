@@ -68,8 +68,9 @@ export async function fetchDurationMinutesByAppointmentIds(
 }
 
 /**
- * Занятый интервал: [starts_at, ends_at) по колонкам `appointments`.
- * Если `ends_at` нет — конец через +60 мин от starts_at.
+ * Занятые интервалы существующих записей: границы только из БД (`starts_at`, `ends_at`).
+ * Длительность новой брони сюда не передаётся и на `endMs` занятых интервалов не влияет.
+ * Если `ends_at` в строке нет — запасной конец +60 мин от `starts_at` (только для старых строк).
  */
 export function appointmentRowsToOccupiedIntervals(
   rows: { id: string; starts_at: string | null; ends_at?: string | null }[],
@@ -105,6 +106,7 @@ function groupIntervalsByStaff(
   return map
 }
 
+/** Окно кандидата для новой записи: [slotStart, slotEnd) по длительности новой услуги. Не смешивать с границами существующих записей. */
 export function slotRangeMsOnLocalDay(
   slotStartMinFromMidnight: number,
   newBookingDurationMinutes: number,
@@ -118,7 +120,10 @@ export function slotRangeMsOnLocalDay(
   return { slotStartMs, slotEndMs }
 }
 
-/** Пересечение [slotStart, slotEnd) с хотя бы одним занятым интервалом. */
+/**
+ * Пересечение окна новой брони `[slotStartMs, slotEndMs)` с занятыми интервалами.
+ * `occupied` должен приходить из `appointmentRowsToOccupiedIntervals` (реальные `ends_at` из БД).
+ */
 export function isProposedSlotOverlapping(
   slotStartMs: number,
   slotEndMs: number,
