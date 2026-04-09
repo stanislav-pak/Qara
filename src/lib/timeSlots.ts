@@ -69,7 +69,11 @@ export function generateTimeSlots(
   return slots
 }
 
-/** Режим «все мастера»: слот доступен, если хотя бы у одного мастера нет пересечения с его записями (длительность новой записи учитывается). */
+/**
+ * Режим «все мастера»:
+ * — яркий слот (available): хотя бы у одного мастера нет пересечения с его записями;
+ * — тусклый: у каждого мастера есть пересечение (все заняты одновременно).
+ */
 export function generateAggregateTimeSlotsOverlap(
   startHour: number,
   endHour: number,
@@ -86,11 +90,11 @@ export function generateAggregateTimeSlotsOverlap(
       const slotStart = h * 60 + m
       const slotEnd = slotStart + duration
       if (slotEnd > endHour * 60) break
-      const anyFree = staffIds.some((id) => {
+      const allStaffBusy = staffIds.every((id) => {
         const list = bookedByStaff.get(id) ?? []
-        return !isSlotBlockedByBookings(slotStart, slotEnd, list, referenceDay)
+        return isSlotBlockedByBookings(slotStart, slotEnd, list, referenceDay)
       })
-      slots.push({ time: timeStr, available: anyFree })
+      slots.push({ time: timeStr, available: !allStaffBusy })
     }
   }
   return slots

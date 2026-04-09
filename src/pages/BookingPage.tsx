@@ -100,16 +100,20 @@ export function BookingPage() {
         return
       }
       setLoading(true)
+      const staffId = selectedStaff!.id
       const { data } = await supabase
         .from('appointments')
-        .select('starts_at, ends_at')
+        .select('staff_id, starts_at, ends_at')
         .eq('owner_id', ownerId)
-        .eq('staff_id', selectedStaff!.id)
+        .eq('staff_id', staffId)
         .gte('starts_at', `${selectedDate}T00:00:00`)
         .lte('starts_at', `${selectedDate}T23:59:59`)
         .not('status', 'in', '(cancelled,no_show)')
       const booked = (data || [])
-        .filter((r): r is { starts_at: string; ends_at: string | null } => r.starts_at != null)
+        .filter(
+          (r): r is { staff_id: string; starts_at: string; ends_at: string | null } =>
+            r.starts_at != null && r.staff_id === staffId,
+        )
         .map((r) => {
           const starts = r.starts_at
           const startMs = new Date(starts).getTime()

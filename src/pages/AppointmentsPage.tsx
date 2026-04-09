@@ -381,13 +381,18 @@ export function AppointmentsPage() {
           setSlotsLoading(false)
           return
         }
-        const apptRows =
+        const apptRows = (
           (data ?? []) as {
             id: string
             staff_id: string | null
             starts_at: string | null
             ends_at: string | null
           }[]
+        ).filter(
+          (r) =>
+            r.staff_id != null &&
+            staffIds.includes(r.staff_id),
+        )
         const durMap = await durationMinutesByAppointment(apptRows.map((r) => r.id))
         const bookedMap = buildBookedIntervalsByStaff(apptRows, staffIds, {
           durationMinutesByAppointmentId: durMap,
@@ -407,11 +412,12 @@ export function AppointmentsPage() {
         return
       }
 
+      const selectedStaffId = newStaffId.trim()
       const { data, error } = await supabase
         .from('appointments')
-        .select('id, starts_at, ends_at')
+        .select('id, staff_id, starts_at, ends_at')
         .eq('owner_id', ownerId)
-        .eq('staff_id', newStaffId.trim())
+        .eq('staff_id', selectedStaffId)
         .gte('starts_at', dayStartIso)
         .lte('starts_at', dayEndIso)
         .not('status', 'in', '(cancelled,no_show)')
@@ -424,22 +430,25 @@ export function AppointmentsPage() {
         return
       }
       setStaffBookedIntervals(new Map())
-      const rows = (data ?? []) as {
-        id: string
-        starts_at: string | null
-        ends_at: string | null
-      }[]
+      const rows = (
+        (data ?? []) as {
+          id: string
+          staff_id: string | null
+          starts_at: string | null
+          ends_at: string | null
+        }[]
+      ).filter((r) => r.staff_id === selectedStaffId)
       const durMap = await durationMinutesByAppointment(rows.map((r) => r.id))
       const withStaff = rows.map((r) => ({
         id: r.id,
-        staff_id: newStaffId.trim(),
+        staff_id: r.staff_id as string,
         starts_at: r.starts_at,
         ends_at: r.ends_at,
       }))
-      const bookedMap = buildBookedIntervalsByStaff(withStaff, [newStaffId.trim()], {
+      const bookedMap = buildBookedIntervalsByStaff(withStaff, [selectedStaffId], {
         durationMinutesByAppointmentId: durMap,
       })
-      const booked = bookedMap.get(newStaffId.trim()) ?? []
+      const booked = bookedMap.get(selectedStaffId) ?? []
       setCreateSlots(
         generateTimeSlots(9, 21, newDurationMin, booked, 'intervalOverlap', selectedDate),
       )
