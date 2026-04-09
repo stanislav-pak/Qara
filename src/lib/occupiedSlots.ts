@@ -106,30 +106,33 @@ function groupIntervalsByStaff(
   return map
 }
 
-/** Окно кандидата для новой записи: [slotStart, slotEnd) по длительности новой услуги. Не смешивать с границами существующих записей. */
+/** Момент начала слота (локальный календарный день referenceDay, минуты от полуночи). */
+export function slotStartMsOnLocalDay(slotStartMinFromMidnight: number, referenceDay: Date): number {
+  const day0 = new Date(referenceDay)
+  day0.setHours(0, 0, 0, 0)
+  return day0.getTime() + slotStartMinFromMidnight * 60 * 1000
+}
+
+/** Окно новой брони `[slotStart, slotEnd)` — только если нужна длительность (например «влезает ли до конца дня»). */
 export function slotRangeMsOnLocalDay(
   slotStartMinFromMidnight: number,
   newBookingDurationMinutes: number,
   referenceDay: Date,
 ): { slotStartMs: number; slotEndMs: number } {
-  const day0 = new Date(referenceDay)
-  day0.setHours(0, 0, 0, 0)
-  const dayMs = day0.getTime()
-  const slotStartMs = dayMs + slotStartMinFromMidnight * 60 * 1000
+  const slotStartMs = slotStartMsOnLocalDay(slotStartMinFromMidnight, referenceDay)
   const slotEndMs = slotStartMs + newBookingDurationMinutes * 60 * 1000
   return { slotStartMs, slotEndMs }
 }
 
 /**
- * Пересечение окна новой брони `[slotStartMs, slotEndMs)` с занятыми интервалами.
- * `occupied` должен приходить из `appointmentRowsToOccupiedIntervals` (реальные `ends_at` из БД).
+ * Слот «занят» (тусклый), если момент начала слота лежит в [o.startMs, o.endMs) существующей записи.
+ * Длительность новой брони на это не влияет.
  */
-export function isProposedSlotOverlapping(
+export function isSlotStartInsideOccupied(
   slotStartMs: number,
-  slotEndMs: number,
   occupied: OccupiedInterval[],
 ): boolean {
-  return occupied.some((o) => slotStartMs < o.endMs && slotEndMs > o.startMs)
+  return occupied.some((o) => slotStartMs >= o.startMs && slotStartMs < o.endMs)
 }
 
 function buildGrid(
@@ -138,7 +141,7 @@ function buildGrid(
   slotStepMinutes: number,
   newBookingDurationMinutes: number,
   referenceDay: Date,
-  isUnavailable: (slotStartMs: number, slotEndMs: number) => boolean,
+  isUnavailable: (slotStartMs: number) => boolean,
 ): TimeSlot[] {
   const slots: TimeSlot[] = []
   for (let h = startHour; h < endHour; h++) {
@@ -146,8 +149,8 @@ function buildGrid(
       const fromMid = h * 60 + m
       if (fromMid + newBookingDurationMinutes > endHour * 60) break
       const timeStr = `${pad2(h)}:${pad2(m)}`
-      const { slotStartMs, slotEndMs } = slotRangeMsOnLocalDay(fromMid, newBookingDurationMinutes, referenceDay)
-      const unavailable = isUnavailable(slotStartMs, slotEndMs)
+      const slotStartMs = slotStartMsOnLocalDay(fromMid, referenceDay)
+      const unavailable = isUnavailable(slotStartMs)
       slots.push({ time: timeStr, available: !unavailable })
     }
   }
@@ -157,9 +160,8 @@ function buildGrid(
 /**
  * Загрузка записей за выбранный календарный день и построение сетки слотов.
  *
- * — single: только записи выбранного мастера; тусклый слот = пересечение с его занятыми интервалами.
- * — all: записи всех переданных мастеров; тусклый слот только если у КАЖДОГО мастера есть пересечение
- *   (все заняты); яркий — если хотя бы у одного нет пересечения.
+ * — single: тусклый слот, если начало слота попадает в [starts_at, ends_at) записи этого мастера.
+ * — all: тусклый, если у каждого из переданных мастеров начало слота попадает в один из его интервалов.
  */
 export async function loadDayCreationTimeSlots(
   supabase: SupabaseClient,
@@ -237,7 +239,7 @@ export async function loadDayCreationTimeSlots(
       slotStep,
       args.newBookingDurationMinutes,
       args.selectedDate,
-      (slotStartMs, slotEndMs) => isProposedSlotOverlapping(slotStartMs, slotEndMs, occupied),
+      (slotStartMs) => isSlotStartInsideOccupied(slotStartMs, occupied),
     )
 
     return { slots, occupiedIntervalsByStaffId: byStaff }
@@ -252,12 +254,11 @@ export async function loadDayCreationTimeSlots(
     slotStep,
     args.newBookingDurationMinutes,
     args.selectedDate,
-    (slotStartMs, slotEndMs) => {
-      const allBusy = staffIds.every((id) => {
+    (slotStartMs) => {
+      return staffIds.every((id) => {
         const occ = byStaff.get(id) ?? []
-        return isProposedSlotOverlapping(slotStartMs, slotEndMs, occ)
+        return isSlotStartInsideOccupied(slotStartMs, occ)
       })
-      return allBusy
     },
   )
 

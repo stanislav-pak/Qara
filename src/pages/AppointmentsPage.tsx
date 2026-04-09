@@ -17,9 +17,9 @@ import {
 } from '@/lib/format'
 import { digitsToE164Plus7 } from '@/lib/kzPhone'
 import {
-  isProposedSlotOverlapping,
+  isSlotStartInsideOccupied,
   loadDayCreationTimeSlots,
-  slotRangeMsOnLocalDay,
+  slotStartMsOnLocalDay,
   type OccupiedInterval,
   type TimeSlot as DayTimeSlot,
 } from '@/lib/occupiedSlots'
@@ -635,14 +635,10 @@ export function AppointmentsPage() {
                       if (!slot.available) return
                       if (newStaffId === STAFF_ALL) {
                         const sm = slotTimeToMinutes(slot.time)
-                        const { slotStartMs, slotEndMs } = slotRangeMsOnLocalDay(
-                          sm,
-                          newDurationMin,
-                          selectedDate,
-                        )
+                        const slotStartMs = slotStartMsOnLocalDay(sm, selectedDate)
                         const free = activeStaff.filter((s) => {
                           const occ = staffBookedIntervals.get(s.id) ?? []
-                          return !isProposedSlotOverlapping(slotStartMs, slotEndMs, occ)
+                          return !isSlotStartInsideOccupied(slotStartMs, occ)
                         })
                         if (free.length === 0) return
                         setStaffPickerTime(slot.time)
@@ -836,13 +832,9 @@ export function AppointmentsPage() {
               {activeStaff
                 .filter((s) => {
                   const sm = slotTimeToMinutes(staffPickerTime)
-                  const { slotStartMs, slotEndMs } = slotRangeMsOnLocalDay(
-                    sm,
-                    newDurationMin,
-                    selectedDate,
-                  )
+                  const slotStartMs = slotStartMsOnLocalDay(sm, selectedDate)
                   const occ = staffBookedIntervals.get(s.id) ?? []
-                  return !isProposedSlotOverlapping(slotStartMs, slotEndMs, occ)
+                  return !isSlotStartInsideOccupied(slotStartMs, occ)
                 })
                 .map((s) => (
                   <li key={s.id}>
