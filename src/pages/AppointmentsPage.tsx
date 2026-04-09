@@ -14,12 +14,25 @@ import {
   isoToDatetimeLocalValue,
   localeTagFromAppLocale,
 } from '@/lib/format'
+import { digitsToE164Plus7 } from '@/lib/kzPhone'
 import { supabase } from '@/lib/supabase'
 import { generateTimeSlots, type TimeSlot as DayTimeSlot } from '@/lib/timeSlots'
 import { useAuthStore } from '@/store/authStore'
 import type { TranslationKey } from '@/locales/ru'
 
 const CREATE_DURATION_OPTIONS = [30, 45, 60, 90, 120] as const
+
+const SERVICE_OTHER = '__other__' as const
+
+type ServiceOption = { id: string; name: string; duration: number }
+
+function snapToCreateDuration(min: number): number {
+  let best = CREATE_DURATION_OPTIONS[0]
+  for (const c of CREATE_DURATION_OPTIONS) {
+    if (Math.abs(c - min) < Math.abs(best - min)) best = c
+  }
+  return best
+}
 
 const STATUS_VALUES: AppointmentStatus[] = ['scheduled', 'completed', 'no_show', 'cancelled']
 
@@ -225,9 +238,11 @@ export function AppointmentsPage() {
   } = useAppointments()
 
   const [newStaffId, setNewStaffId] = useState('')
-  const [newTitle, setNewTitle] = useState('')
+  const [serviceList, setServiceList] = useState<ServiceOption[]>([])
+  const [newServiceId, setNewServiceId] = useState('')
+  const [newTitleOther, setNewTitleOther] = useState('')
   const [newClient, setNewClient] = useState('')
-  const [newPhone, setNewPhone] = useState('')
+  const [newPhoneDigits, setNewPhoneDigits] = useState('')
   const [newDurationMin, setNewDurationMin] = useState<number>(60)
   const [newSelectedTime, setNewSelectedTime] = useState('')
   const [createSlots, setCreateSlots] = useState<DayTimeSlot[]>([])
@@ -236,6 +251,32 @@ export function AppointmentsPage() {
   const [working, setWorking] = useState(false)
   const [editing, setEditing] = useState<AppointmentDayRow | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!userId) {
+      setServiceList([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('services')
+        .select('id, name, duration')
+        .eq('owner_id', userId)
+        .eq('is_active', true)
+        .order('name')
+      if (cancelled) return
+      if (error) {
+        console.warn('[appointments] services', error)
+        setServiceList([])
+        return
+      }
+      setServiceList((data ?? []) as ServiceOption[])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
 
   useEffect(() => {
     setNewSelectedTime('')
@@ -276,7 +317,7 @@ export function AppointmentsPage() {
             new Date(new Date(starts).getTime() + 60 * 60 * 1000).toISOString()
           return { starts_at: starts, ends_at: end }
         })
-      setCreateSlots(generateTimeSlots(9, 21, newDurationMin, booked))
+      setCreateSlots(generateTimeSlots(9, 21, newDurationMin, booked, 'exactStart'))
       setSlotsLoading(false)
     })()
     return () => {
@@ -290,16 +331,21 @@ export function AppointmentsPage() {
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newSelectedTime.trim()) return
+    if (!newSelectedTime.trim() || !newServiceId) return
     setFormError(false)
     setWorking(true)
     const dayStr = formatDateInputLocal(selectedDate)
     const scheduledLocal = `${dayStr}T${newSelectedTime.trim()}:00`
+    const titleResolved =
+      newServiceId === SERVICE_OTHER
+        ? newTitleOther.trim() || 'Приём'
+        : serviceList.find((s) => s.id === newServiceId)?.name.trim() || newTitleOther.trim() || 'Приём'
+    const phoneE164 = digitsToE164Plus7(newPhoneDigits)
     const { error } = await createAppointment({
       staff_id: newStaffId,
-      title: newTitle,
+      title: titleResolved,
       client_name: newClient.trim() || null,
-      phone: newPhone.trim() || null,
+      phone: phoneE164,
       scheduled_at: datetimeLocalValueToIso(scheduledLocal),
       duration_minutes: newDurationMin,
     })
@@ -308,9 +354,10 @@ export function AppointmentsPage() {
       setFormError(true)
       return
     }
-    setNewTitle('')
+    setNewServiceId('')
+    setNewTitleOther('')
     setNewClient('')
-    setNewPhone('')
+    setNewPhoneDigits('')
     setNewSelectedTime('')
   }
 
@@ -440,15 +487,44 @@ export function AppointmentsPage() {
               ))}
             </select>
           </label>
-          <label className="sm:col-span-2">
-            <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldTitle')}</span>
-            <input
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              placeholder="Приём"
-            />
-          </label>
+          <div className="sm:col-span-2 space-y-2">
+            <label className="block">
+              <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldTitle')}</span>
+              <select
+                value={newServiceId}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setNewServiceId(v)
+                  if (v && v !== SERVICE_OTHER) {
+                    const s = serviceList.find((x) => x.id === v)
+                    if (s) setNewDurationMin(snapToCreateDuration(s.duration))
+                  }
+                }}
+                required
+                disabled={loading || !userId}
+                className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20 disabled:opacity-40"
+              >
+                <option value="">{t('appointments.selectService')}</option>
+                {serviceList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+                <option value={SERVICE_OTHER}>{t('appointments.serviceOther')}</option>
+              </select>
+            </label>
+            {newServiceId === SERVICE_OTHER ? (
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-500">{t('appointments.titleManualPlaceholder')}</span>
+                <input
+                  value={newTitleOther}
+                  onChange={(e) => setNewTitleOther(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+                  placeholder="Приём"
+                />
+              </label>
+            ) : null}
+          </div>
           <label className="sm:col-span-2">
             <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldClient')}</span>
             <input
@@ -458,15 +534,24 @@ export function AppointmentsPage() {
               placeholder={t('appointments.fieldClientOptional')}
             />
           </label>
-          <label className="sm:col-span-2">
+          <div className="sm:col-span-2">
             <span className="text-xs font-medium text-zinc-500">{t('appointments.fieldPhone')}</span>
-            <input
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              placeholder="+7 777 123 45 67"
-            />
-          </label>
+            <div className="mt-1 flex overflow-hidden rounded-xl border border-white/10 bg-black/30 focus-within:border-white/20">
+              <span className="flex shrink-0 items-center border-r border-white/10 bg-white/[0.04] px-3 text-sm tabular-nums text-zinc-400">
+                +7
+              </span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                value={newPhoneDigits}
+                onChange={(e) => setNewPhoneDigits(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="7771234567"
+                className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600"
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-zinc-600">{t('appointments.phoneDigitsHint')}</p>
+          </div>
           <p className="text-xs text-zinc-600 sm:col-span-2">
             {t('appointments.fieldDateTime')}:{' '}
             <span className="font-medium text-zinc-400">
@@ -533,6 +618,7 @@ export function AppointmentsPage() {
                 loading ||
                 !newStaffId.trim() ||
                 !newSelectedTime.trim() ||
+                !newServiceId ||
                 activeStaff.length === 0
               }
               className="w-full rounded-xl bg-[var(--color-accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-accent-muted)] disabled:opacity-40"

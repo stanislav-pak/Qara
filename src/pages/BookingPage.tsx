@@ -1,16 +1,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { digitsToE164Plus7 } from '@/lib/kzPhone'
 import { generateTimeSlots, type TimeSlot } from '@/lib/timeSlots'
 
 /** Same UUID as in Supabase RLS policies for anon booking (see supabase/public_booking_rls.sql). */
 function bookingOwnerId(): string | undefined {
   return import.meta.env.VITE_BOOKING_OWNER_ID?.trim() || undefined
-}
-
-/** KZ/RU mobile: user types 10 digits after +7; stored as +7XXXXXXXXXX. */
-function digitsToE164Plus7(digits: string): string | null {
-  const d = digits.replace(/\D/g, '').slice(0, 10)
-  return d.length === 10 ? `+7${d}` : null
 }
 
 interface StaffMember {
