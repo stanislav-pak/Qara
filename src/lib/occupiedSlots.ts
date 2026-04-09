@@ -68,19 +68,17 @@ export async function fetchDurationMinutesByAppointmentIds(
 }
 
 /**
- * Занятый интервал: [starts_at, starts_at + duration_minutes).
- * Если duration неизвестна (0), подставляется +60 мин от starts_at.
+ * Занятый интервал: [starts_at, ends_at) по колонкам `appointments`.
+ * Если `ends_at` нет — конец через +60 мин от starts_at.
  */
 export function appointmentRowsToOccupiedIntervals(
-  rows: { id: string; starts_at: string | null }[],
-  durationMinutesByAppointmentId: Map<string, number>,
+  rows: { id: string; starts_at: string | null; ends_at?: string | null }[],
 ): OccupiedInterval[] {
   const out: OccupiedInterval[] = []
   for (const row of rows) {
     if (!row.starts_at) continue
     const startMs = new Date(row.starts_at).getTime()
-    const dur = durationMinutesByAppointmentId.get(row.id) ?? 0
-    const endMs = dur > 0 ? startMs + dur * 60 * 1000 : startMs + 60 * 60 * 1000
+    const endMs = row.ends_at ? new Date(row.ends_at).getTime() : startMs + 60 * 60 * 1000
     if (endMs <= startMs) continue
     out.push({ startMs, endMs })
   }
@@ -90,7 +88,6 @@ export function appointmentRowsToOccupiedIntervals(
 function groupIntervalsByStaff(
   rows: Record<string, unknown>[],
   staffIds: string[],
-  durationByAppt: Map<string, number>,
 ): Map<string, OccupiedInterval[]> {
   const map = new Map<string, OccupiedInterval[]>()
   for (const id of staffIds) {
@@ -100,11 +97,9 @@ function groupIntervalsByStaff(
     const staffId = readAppointmentStaffId(raw)
     const id = typeof raw.id === 'string' ? raw.id : null
     const startsAt = typeof raw.starts_at === 'string' ? raw.starts_at : null
+    const endsAt = typeof raw.ends_at === 'string' ? raw.ends_at : null
     if (!staffId || !id || !startsAt || !map.has(staffId)) continue
-    const [interval] = appointmentRowsToOccupiedIntervals(
-      [{ id, starts_at: startsAt }],
-      durationByAppt,
-    )
+    const [interval] = appointmentRowsToOccupiedIntervals([{ id, starts_at: startsAt, ends_at: endsAt }])
     if (interval) map.get(staffId)!.push(interval)
   }
   return map
@@ -185,7 +180,7 @@ export async function loadDayCreationTimeSlots(
   /** Все записи за календарный день по салону (без фильтра по мастеру — иначе в БД уходит .eq(staff) и приходит только часть строк). Фильтр по мастеру — ниже, при расчёте занятости. */
   const { data, error } = await supabase
     .from('appointments')
-    .select(`id, starts_at, ${APPOINTMENT_STAFF_FK}`)
+    .select(`id, starts_at, ends_at, ${APPOINTMENT_STAFF_FK}`)
     .eq('owner_id', args.ownerId)
     .gte('starts_at', dayStartIso)
     .lte('starts_at', dayEndIso)
@@ -201,19 +196,14 @@ export async function loadDayCreationTimeSlots(
     dayStartIso,
     dayEndIso,
     staffMode: args.staffMode,
-    /** В БД колонка `staff_id`, не `staff_member_id`. */
     filter: 'none (all appointments for day; staff applied in memory)',
     rowCount: rawRows.length,
     rows: rawRows.map((r) => ({
       id: r.id,
       starts_at: r.starts_at,
+      ends_at: r.ends_at,
       [APPOINTMENT_STAFF_FK]: r[APPOINTMENT_STAFF_FK],
     })),
-  })
-  const ids = rawRows.map((r) => (typeof r.id === 'string' ? r.id : '')).filter(Boolean)
-  const durationByAppt = await fetchDurationMinutesByAppointmentIds(supabase, args.ownerId, ids)
-  console.log('[occupiedSlots] durationMinutes by appointment_id (from appointment_services aggregate)', {
-    ...Object.fromEntries(durationByAppt),
   })
 
   if (args.staffMode.kind === 'single') {
@@ -223,8 +213,9 @@ export async function loadDayCreationTimeSlots(
       .map((r) => ({
         id: r.id as string,
         starts_at: typeof r.starts_at === 'string' ? r.starts_at : null,
+        ends_at: typeof r.ends_at === 'string' ? r.ends_at : null,
       }))
-    const occupied = appointmentRowsToOccupiedIntervals(rows, durationByAppt)
+    const occupied = appointmentRowsToOccupiedIntervals(rows)
     const byStaff = new Map<string, OccupiedInterval[]>([[sid, occupied]])
 
     const slots = buildGrid(
@@ -240,7 +231,7 @@ export async function loadDayCreationTimeSlots(
   }
 
   const staffIds = args.staffMode.staffMemberIds
-  const byStaff = groupIntervalsByStaff(rawRows, staffIds, durationByAppt)
+  const byStaff = groupIntervalsByStaff(rawRows, staffIds)
 
   const slots = buildGrid(
     startHour,
