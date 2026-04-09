@@ -20,7 +20,7 @@ import { generateTimeSlots, type TimeSlot as DayTimeSlot } from '@/lib/timeSlots
 import { useAuthStore } from '@/store/authStore'
 import type { TranslationKey } from '@/locales/ru'
 
-const CREATE_DURATION_OPTIONS = [30, 45, 60, 90, 120] as const
+const CREATE_DURATION_OPTIONS: number[] = [30, 45, 60, 90, 120]
 
 const SERVICE_OTHER = '__other__' as const
 
